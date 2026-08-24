@@ -20,7 +20,7 @@ The product's central proof is:
 * **Validated Empirical Benchmark:** Washington, DC scenario locked and empirically verified using real FortyGuard street-level thermal evidence and official 2020 U.S. Census population data.
 * **Deterministic FastAPI Backend:** Strict Pydantic contracts, exact Decimal demand calculations, exhaustive combinatorial maximum-coverage optimizer, baseline models, and replacement loss evidence.
 * **Interactive React GIS Dashboard:** Leaflet geospatial canvas, diurnal timeline controls, performance metrics, facility cards, baseline comparison panel, and 1-for-1 replacement drawer.
-* **130 Passing Automated Tests:** 100% pass rate covering contracts, optimizer, baselines, coverage, replacement loss, repeatability, scenario loading, and server API endpoints.
+* **131 Passing Automated Tests:** 100% pass rate covering contracts, optimizer, baselines, coverage, replacement loss, repeatability, scenario loading, and server API endpoints.
 * **Inspectable & Provenance-Preserved:** Full-state SHA-256 fingerprints, immutable data provenance registries, and zero black-box heuristics.
 
 ---
@@ -86,6 +86,14 @@ CoolAccess includes a fully validated, provenance-tracked empirical scenario for
 * **Bounded AI Strategy:** Any future AI/LLM components (such as an Evidence Narrator or Operations Copilot) are architected strictly as read-only, evidence-grounded explanation layers. The AI layer translates structured replacement evidence and provenance records into natural-language briefs, with zero authority to alter numerical outputs, constraints, or facility selections.
 * **Fail-Closed Independence:** CoolAccess is completely self-contained and fully functional without an external LLM dependency or API key.
 
+### AI Architecture Positioning
+
+CoolAccess intentionally separates **decision authority** from **decision explanation**:
+
+* The deterministic combinatorial optimizer is the sole decision authority. It produces all facility selections, coverage metrics, baseline comparisons, and replacement evidence.
+* AI (LLM/Agent) components are architecturally positioned as an **optional, read-only explanation layer**. When present, they translate structured optimizer outputs into natural-language operational briefs — but they cannot modify, override, or influence any numerical result.
+* This separation ensures that every allocation recommendation is fully reproducible, mathematically verifiable, and independent of any external AI service availability.
+
 ---
 
 ## 4. Interactive Demo Walkthrough
@@ -130,7 +138,7 @@ The Vite development server runs on `http://localhost:5173` and connects to the 
 
 ### Quality & Verification Commands
 ```powershell
-# Run full test suite (130 tests)
+# Run full test suite (131 tests)
 python -m pytest
 
 # Code style and lint checks

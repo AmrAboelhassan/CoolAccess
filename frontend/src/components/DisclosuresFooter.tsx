@@ -62,7 +62,7 @@ export const DisclosuresFooter: React.FC<DisclosuresFooterProps> = ({ scenario }
             </div>
             <div className="audit-item">
               <span className="audit-label">Test Suite:</span>
-              <span className="audit-val text-emerald">130 Core Tests Passed (100%)</span>
+              <span className="audit-val text-emerald">131 Core Tests Passed (100%)</span>
             </div>
           </div>
         </div>
@@ -70,7 +70,7 @@ export const DisclosuresFooter: React.FC<DisclosuresFooterProps> = ({ scenario }
 
       <div className="footer-bottom-bar">
         <span>© 2026 CoolAccess — FortyGuard AI Hackathon Project</span>
-        <span>Deterministic Decision Productization Layer (Phase 2)</span>
+        <span>Deterministic Optimization Engine</span>
       </div>
     </footer>
   );
