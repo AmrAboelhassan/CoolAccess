@@ -99,6 +99,14 @@ export const ReplacementDrawer: React.FC<ReplacementDrawerProps> = ({
       .replace(
         /While the alternative covers \+(\d+) raw residents/gi,
         (_, num) => `While the alternative covers ${Number(num).toLocaleString()} more raw residents`
+      )
+      .replace(
+        /substantially higher late-afternoon thermal priority/gi,
+        'higher heat-weighted thermal priority'
+      )
+      .replace(
+        /higher late-afternoon thermal priority/gi,
+        'higher heat-weighted thermal priority'
       );
   }, [primary?.explanation]);
 
