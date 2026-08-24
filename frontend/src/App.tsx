@@ -36,61 +36,56 @@ export function App() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Initial Scenario Load
-  useEffect(() => {
-    let isMounted = true;
-    fetchScenario()
-      .then((data) => {
-        if (isMounted) {
-          setScenario(data);
-          setFacilities(data.candidate_facilities);
-        }
-      })
-      .catch((err) => {
-        if (isMounted) {
-          setError(`Failed to connect to CoolAccess backend: ${err.message}`);
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  // Atomic state reload on timestamp change
-  const loadTimestampData = useCallback(async (timestamp: string) => {
+  // Unified atomic data loader
+  const loadData = useCallback(async (timestamp: string, isInitial: boolean = false) => {
     try {
       setLoading(true);
       setError(null);
 
-      const [allocData, geoData] = await Promise.all([
-        fetchAllocation(timestamp, '16:00', 750, 3),
-        fetchGeoJSON('all', timestamp),
-      ]);
+      if (isInitial || !scenario) {
+        const [scenarioData, allocData, geoData] = await Promise.all([
+          fetchScenario(),
+          fetchAllocation(timestamp, '16:00', 750, 3),
+          fetchGeoJSON('all', timestamp),
+        ]);
 
-      setAllocation(allocData);
+        setScenario(scenarioData);
+        setFacilities(scenarioData.candidate_facilities || []);
+        setAllocation(allocData);
 
-      const geoObj = geoData as Record<string, GeoJSONFeatureCollection>;
-      if (geoObj.thermal) {
-        setThermalGeoJSON(geoObj.thermal);
+        const geoObj = geoData as Record<string, GeoJSONFeatureCollection>;
+        if (geoObj.thermal) setThermalGeoJSON(geoObj.thermal);
+        if (geoObj.aoi) setAoiGeoJSON(geoObj.aoi);
+      } else {
+        const [allocData, geoData] = await Promise.all([
+          fetchAllocation(timestamp, '16:00', 750, 3),
+          fetchGeoJSON('all', timestamp),
+        ]);
+
+        setAllocation(allocData);
+
+        const geoObj = geoData as Record<string, GeoJSONFeatureCollection>;
+        if (geoObj.thermal) setThermalGeoJSON(geoObj.thermal);
+        if (geoObj.aoi) setAoiGeoJSON(geoObj.aoi);
       }
-      if (geoObj.aoi) {
-        setAoiGeoJSON(geoObj.aoi);
-      }
+
       setLoading(false);
     } catch (err: any) {
-      setError(err.message || 'Error updating timestamp state');
+      console.error('Failed to load CoolAccess dashboard data:', err);
+      setError(err.message || 'Error updating dashboard state');
       setLoading(false);
     }
+  }, [scenario]);
+
+  // Initial load
+  useEffect(() => {
+    loadData('16:00', true);
   }, []);
 
-  useEffect(() => {
-    loadTimestampData(currentTimestamp);
-  }, [currentTimestamp, loadTimestampData]);
-
   const handleSelectTimestamp = (ts: string) => {
+    if (ts === currentTimestamp) return;
     setCurrentTimestamp(ts);
+    loadData(ts, false);
   };
 
   const handleSelectFacility = (id: string) => {
@@ -112,7 +107,7 @@ export function App() {
       {error && (
         <div className="app-error-banner">
           <span>⚠️ {error}</span>
-          <button type="button" onClick={() => loadTimestampData(currentTimestamp)}>
+          <button type="button" onClick={() => loadData(currentTimestamp, false)}>
             Retry Connection
           </button>
         </div>

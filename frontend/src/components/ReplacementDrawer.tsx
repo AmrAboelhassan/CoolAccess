@@ -215,7 +215,9 @@ export const ReplacementDrawer: React.FC<ReplacementDrawerProps> = ({
             </div>
           </div>
         </div>
-      ) : null}
+      ) : (
+        <div className="drawer-loading-box">AI Explainability ready — compare selected facilities against alternatives.</div>
+      )}
     </div>
   );
 };
