@@ -31,6 +31,29 @@ export const BaselineComparison: React.FC<BaselineComparisonProps> = ({
 
   const hasStaticAdvantage = staticGain > 0;
 
+  if (dynamicFacilities.length === 0 || (!staticBaseline && !naiveBaseline)) {
+    return (
+      <div className="baseline-comparison-panel">
+        <div className="panel-header-row">
+          <div className="panel-title-group">
+            <Award size={18} className="text-amber" />
+            <div>
+              <h3 className="section-title">
+                Baseline Comparison Proof (Same K={budgetK || 3} Budget)
+              </h3>
+              <p className="section-subtitle">
+                Awaiting optimization results for {currentTimestamp} UTC...
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="drawer-loading-box">
+          Computing baseline comparison metrics...
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="baseline-comparison-panel">
       <div className="panel-header-row">

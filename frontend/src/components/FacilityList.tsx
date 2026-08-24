@@ -22,6 +22,20 @@ export const FacilityList: React.FC<FacilityListProps> = ({
   const activeFacilities = facilities.filter((f) => selectedSet.has(f.facility_id));
   const inactiveFacilities = facilities.filter((f) => !selectedSet.has(f.facility_id));
 
+  if (facilities.length === 0 || selectedFacilityIds.length === 0) {
+    return (
+      <div className="facility-list-panel">
+        <div className="facility-panel-header">
+          <h3 className="section-title">Facility Allocation Status</h3>
+          <span className="allocation-count-tag">Synchronizing...</span>
+        </div>
+        <div className="drawer-loading-box">
+          Awaiting optimization results & facility allocation...
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="facility-list-panel">
       <div className="facility-panel-header">

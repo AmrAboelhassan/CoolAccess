@@ -18,35 +18,43 @@ export const ReplacementDrawer: React.FC<ReplacementDrawerProps> = ({
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  const selectedSet = new Set(selectedFacilityIds);
-  const unselectedFacilityIds = facilities
-    .map((f) => f.facility_id)
-    .filter((id) => !selectedSet.has(id));
-
-  const [selectedId, setSelectedId] = useState<string>(
-    selectedFacilityIds.includes('DC_135') ? 'DC_135' : (selectedFacilityIds[0] || 'DC_089')
-  );
-  const [unselectedId, setUnselectedId] = useState<string>(
-    unselectedFacilityIds.includes('DC_148') ? 'DC_148' : (unselectedFacilityIds[0] || 'DC_148')
+  const selectedSet = React.useMemo(() => new Set(selectedFacilityIds), [selectedFacilityIds]);
+  const unselectedFacilityIds = React.useMemo(
+    () => facilities.map((f) => f.facility_id).filter((id) => !selectedSet.has(id)),
+    [facilities, selectedSet]
   );
 
-  // Sync default facility ids when timestamp/allocation changes
+  const [selectedId, setSelectedId] = useState<string>('');
+  const [unselectedId, setUnselectedId] = useState<string>('');
+
+  // Sync valid selected and unselected IDs whenever allocation changes
   useEffect(() => {
-    if (selectedFacilityIds.length > 0) {
-      const defaultSel = selectedFacilityIds.includes('DC_135')
-        ? 'DC_135'
-        : selectedFacilityIds[0];
-      const defaultUnsel = unselectedFacilityIds.includes('DC_148')
-        ? 'DC_148'
-        : unselectedFacilityIds[0] || '';
+    if (selectedFacilityIds.length > 0 && unselectedFacilityIds.length > 0) {
+      let nextSel = selectedId;
+      if (!nextSel || !selectedSet.has(nextSel)) {
+        nextSel = selectedFacilityIds.includes('DC_135') ? 'DC_135' : selectedFacilityIds[0];
+      }
 
-      setSelectedId(defaultSel);
-      if (defaultUnsel) setUnselectedId(defaultUnsel);
+      let nextUnsel = unselectedId;
+      if (!nextUnsel || !unselectedFacilityIds.includes(nextUnsel)) {
+        nextUnsel = unselectedFacilityIds.includes('DC_148') ? 'DC_148' : unselectedFacilityIds[0];
+      }
+
+      setSelectedId(nextSel);
+      setUnselectedId(nextUnsel);
     }
-  }, [selectedFacilityIds.join(',')]);
+  }, [selectedFacilityIds, unselectedFacilityIds, selectedSet]);
 
+  // Fetch replacement ONLY when valid selected and unselected IDs exist
   useEffect(() => {
-    if (!selectedId || !unselectedId) return;
+    if (
+      !selectedId ||
+      !unselectedId ||
+      !selectedSet.has(selectedId) ||
+      !unselectedFacilityIds.includes(unselectedId)
+    ) {
+      return;
+    }
 
     let isMounted = true;
     setLoading(true);
@@ -69,7 +77,7 @@ export const ReplacementDrawer: React.FC<ReplacementDrawerProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [currentTimestamp, selectedId, unselectedId]);
+  }, [currentTimestamp, selectedId, unselectedId, selectedSet, unselectedFacilityIds]);
 
   const primary = replacementData?.primary_replacement;
 
