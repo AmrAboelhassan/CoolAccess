@@ -7,7 +7,7 @@ name = "coolaccess"
 version = "0.1.0"
 description = "Provider-neutral deterministic allocation foundation for CoolAccess"
 readme = "README.md"
-requires-python = ">=3.11,<3.12"
+requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.115,<1",
   "pydantic>=2,<3",
