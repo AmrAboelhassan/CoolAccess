@@ -148,8 +148,8 @@ export const BaselineComparison: React.FC<BaselineComparisonProps> = ({
               <span className="stat-value">{dynamicPopulation.toLocaleString()}</span>
             </div>
             <div className="comp-stat-row">
-              <span className="stat-label">Comparative Advantage:</span>
-              <span className="stat-value text-accent font-semibold">100.0% Optimal</span>
+              <span className="stat-label">Optimization Status:</span>
+              <span className="stat-value text-accent font-semibold">Global Optimum</span>
             </div>
           </div>
 
