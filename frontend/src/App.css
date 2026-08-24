@@ -18,8 +18,8 @@
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
-  gap: 24px;
-  padding: 16px 20px;
+  gap: 20px;
+  padding: 14px 20px;
   background-color: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
@@ -30,6 +30,7 @@
   display: flex;
   align-items: center;
   gap: 14px;
+  flex-shrink: 0;
 }
 
 .brand-badge {
@@ -42,6 +43,12 @@
   border: 1px solid #38bdf8;
   border-radius: var(--radius-md);
   color: white;
+  flex-shrink: 0;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
 }
 
 .brand-title-row {
@@ -55,6 +62,7 @@
   font-weight: 800;
   letter-spacing: -0.02em;
   color: var(--text-primary);
+  margin: 0;
 }
 
 .system-pill {
@@ -76,17 +84,21 @@
 }
 
 .header-meta-grid {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 10px;
+  flex-shrink: 0;
 }
 
 .meta-card {
   background-color: var(--bg-app);
   border: 1px solid var(--border-subtle);
-  padding: 8px 14px;
+  padding: 8px 12px;
   border-radius: var(--radius-md);
-  min-width: 170px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .meta-card.highlight {
@@ -97,24 +109,52 @@
 .meta-label {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: 600;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-muted);
   margin-bottom: 2px;
+  white-space: nowrap;
 }
 
 .meta-value {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--text-primary);
+  line-height: 1.3;
+  white-space: nowrap;
 }
 
 .meta-sub {
   font-size: 11px;
   color: var(--text-secondary);
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+@media (max-width: 1360px) {
+  .app-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+  }
+  .header-meta-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .header-meta-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 540px) {
+  .header-meta-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ----------------------------------------------------
