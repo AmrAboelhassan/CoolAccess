@@ -139,7 +139,7 @@ export const ReplacementDrawer: React.FC<ReplacementDrawerProps> = ({
 
       {/* Replacement Analysis Result Cards */}
       {loading ? (
-        <div className="drawer-loading-box">Computing 1-for-1 replacement evidence...</div>
+        <div className="drawer-loading-box">AI Explainability ready — compare selected facilities against alternatives.</div>
       ) : error ? (
         <div className="drawer-error-box">{error}</div>
       ) : primary ? (

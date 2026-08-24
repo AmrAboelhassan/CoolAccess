@@ -110,14 +110,12 @@ export const MetricsSummary: React.FC<MetricsSummaryProps> = ({
             <div className="solver-meta">
               <Cpu size={12} className="text-muted" />
               <span>
-                Solver: Exhaustive Power-Set ({combinationsEvaluated} combinations evaluated)
+                Optimization Engine: Exhaustive evaluation of {combinationsEvaluated} feasible facility combinations
               </span>
             </div>
-            {tieBreakCriterion && (
-              <div className="tiebreak-meta">
-                <span>Criterion: {tieBreakCriterion}</span>
-              </div>
-            )}
+            <div className="tiebreak-meta">
+              <span>Objective: Maximize heat-weighted population protection ({tieBreakCriterion || 'heat_weighted_demand'})</span>
+            </div>
           </div>
         </div>
       </div>

@@ -70,7 +70,7 @@ export const DisclosuresFooter: React.FC<DisclosuresFooterProps> = ({ scenario }
 
       <div className="footer-bottom-bar">
         <span>© 2026 CoolAccess — FortyGuard AI Hackathon Project</span>
-        <span>Building Temperature Intelligence for Data-Driven Municipal Heat Response</span>
+        <span>Temperature Intelligence • Evidence-Grounded AI • Deterministic Optimization</span>
       </div>
     </footer>
   );

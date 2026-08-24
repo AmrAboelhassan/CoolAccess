@@ -64,14 +64,14 @@ export const BaselineComparison: React.FC<BaselineComparisonProps> = ({
       {/* Dynamic Judge Summary Bar */}
       <div className="baseline-summary-bar">
         <div className="summary-stat-cell">
-          <span className="summary-stat-label">DYNAMIC OPTIMIZATION GAIN</span>
+          <span className="summary-stat-label">DIURNAL OPTIMIZATION RESPONSE</span>
           <span className="summary-stat-value text-emerald font-mono">
-            {hasStaticAdvantage ? `+${staticGainPct.toFixed(1)}%` : 'Baseline Parity'}
+            {hasStaticAdvantage ? `+${staticGainPct.toFixed(1)}% Gain` : 'Current State: Baseline Parity'}
           </span>
           <span className="summary-stat-sub">
             {hasStaticAdvantage
-              ? `+${staticGain.toFixed(2)} heat demand units protected`
-              : `At ${currentTimestamp} UTC, optimal allocation matches static configuration`}
+              ? `+${staticGain.toFixed(2)} heat demand units protected via dynamic shelter shift`
+              : `The system detects no required reallocation at ${currentTimestamp} UTC because thermal conditions have not shifted yet. Dynamic advantages emerge during evening heat retention transitions.`}
           </span>
         </div>
 
@@ -171,7 +171,7 @@ export const BaselineComparison: React.FC<BaselineComparisonProps> = ({
           <p className="comp-summary-text">
             {staticGain > 0
               ? `Keeps ${staticBaseline?.source_timestamp || 'earlier'} allocation active into current horizon, failing to shift resources where late-day thermal inertia peaks.`
-              : `At the current ${currentTimestamp} UTC horizon, the optimal allocation matches the static configuration because thermal conditions have not yet shifted. The advantage appears during diurnal transitions when heat retention patterns change.`}
+              : `The system detects no required reallocation at ${currentTimestamp} UTC because thermal conditions have not shifted yet. Dynamic advantages emerge during evening heat retention transitions.`}
           </p>
         </div>
 
