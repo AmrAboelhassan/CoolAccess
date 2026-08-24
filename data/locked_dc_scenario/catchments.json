@@ -1,0 +1,140 @@
+{
+  "500m": {
+    "radius_meters": 500,
+    "total_aoi_population": 100389,
+    "union_covered_blocks": 312,
+    "union_covered_population": 40559,
+    "unassigned_population": 59830,
+    "union_population_coverage_pct": 40.4,
+    "per_facility_catchments": {
+      "DC_089": {
+        "facility_name": "Shaw Library - Watha T. Daniel",
+        "catchment_radius_meters": 500,
+        "covered_block_count": 62,
+        "covered_raw_population": 7286
+      },
+      "DC_135": {
+        "facility_name": "Martin Luther King Jr. Memorial Library",
+        "catchment_radius_meters": 500,
+        "covered_block_count": 49,
+        "covered_raw_population": 3183
+      },
+      "DC_148": {
+        "facility_name": "Northeast Library",
+        "catchment_radius_meters": 500,
+        "covered_block_count": 70,
+        "covered_raw_population": 7358
+      },
+      "DC_159": {
+        "facility_name": "Southeast Library",
+        "catchment_radius_meters": 500,
+        "covered_block_count": 69,
+        "covered_raw_population": 5523
+      },
+      "DC_166": {
+        "facility_name": "Randall Recreation Center",
+        "catchment_radius_meters": 500,
+        "covered_block_count": 43,
+        "covered_raw_population": 9335
+      },
+      "DC_168": {
+        "facility_name": "Southwest Library",
+        "catchment_radius_meters": 500,
+        "covered_block_count": 25,
+        "covered_raw_population": 9677
+      }
+    }
+  },
+  "750m": {
+    "radius_meters": 750,
+    "total_aoi_population": 100389,
+    "union_covered_blocks": 551,
+    "union_covered_population": 63125,
+    "unassigned_population": 37264,
+    "union_population_coverage_pct": 62.88,
+    "per_facility_catchments": {
+      "DC_089": {
+        "facility_name": "Shaw Library - Watha T. Daniel",
+        "catchment_radius_meters": 750,
+        "covered_block_count": 114,
+        "covered_raw_population": 12376
+      },
+      "DC_135": {
+        "facility_name": "Martin Luther King Jr. Memorial Library",
+        "catchment_radius_meters": 750,
+        "covered_block_count": 87,
+        "covered_raw_population": 10703
+      },
+      "DC_148": {
+        "facility_name": "Northeast Library",
+        "catchment_radius_meters": 750,
+        "covered_block_count": 131,
+        "covered_raw_population": 14222
+      },
+      "DC_159": {
+        "facility_name": "Southeast Library",
+        "catchment_radius_meters": 750,
+        "covered_block_count": 143,
+        "covered_raw_population": 9451
+      },
+      "DC_166": {
+        "facility_name": "Randall Recreation Center",
+        "catchment_radius_meters": 750,
+        "covered_block_count": 94,
+        "covered_raw_population": 15278
+      },
+      "DC_168": {
+        "facility_name": "Southwest Library",
+        "catchment_radius_meters": 750,
+        "covered_block_count": 59,
+        "covered_raw_population": 13213
+      }
+    }
+  },
+  "1000m": {
+    "radius_meters": 1000,
+    "total_aoi_population": 100389,
+    "union_covered_blocks": 692,
+    "union_covered_population": 80773,
+    "unassigned_population": 19616,
+    "union_population_coverage_pct": 80.46,
+    "per_facility_catchments": {
+      "DC_089": {
+        "facility_name": "Shaw Library - Watha T. Daniel",
+        "catchment_radius_meters": 1000,
+        "covered_block_count": 151,
+        "covered_raw_population": 20749
+      },
+      "DC_135": {
+        "facility_name": "Martin Luther King Jr. Memorial Library",
+        "catchment_radius_meters": 1000,
+        "covered_block_count": 139,
+        "covered_raw_population": 20893
+      },
+      "DC_148": {
+        "facility_name": "Northeast Library",
+        "catchment_radius_meters": 1000,
+        "covered_block_count": 190,
+        "covered_raw_population": 19494
+      },
+      "DC_159": {
+        "facility_name": "Southeast Library",
+        "catchment_radius_meters": 1000,
+        "covered_block_count": 203,
+        "covered_raw_population": 16448
+      },
+      "DC_166": {
+        "facility_name": "Randall Recreation Center",
+        "catchment_radius_meters": 1000,
+        "covered_block_count": 150,
+        "covered_raw_population": 20641
+      },
+      "DC_168": {
+        "facility_name": "Southwest Library",
+        "catchment_radius_meters": 1000,
+        "covered_block_count": 104,
+        "covered_raw_population": 17034
+      }
+    }
+  }
+}

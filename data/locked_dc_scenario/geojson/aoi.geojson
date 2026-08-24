@@ -1,0 +1,41 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "city": "Washington, DC",
+        "aoi_name": "DC Downtown / Capitol Hill / SW Waterfront",
+        "area_km2": 14.61,
+        "facility_count": 6
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -77.03,
+              38.875
+            ],
+            [
+              -76.992,
+              38.875
+            ],
+            [
+              -76.992,
+              38.915
+            ],
+            [
+              -77.03,
+              38.915
+            ],
+            [
+              -77.03,
+              38.875
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

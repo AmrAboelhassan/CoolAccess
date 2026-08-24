@@ -1,0 +1,107 @@
+{
+  "scenario_id": "dc_downtown_capitol_hill_750m",
+  "city_name": "Washington, DC",
+  "scenario_title": "DC Downtown / Capitol Hill / SW Waterfront Cooling Priority",
+  "historical_date": "2024-07-15",
+  "timezone": "America/New_York",
+  "aoi": {
+    "name": "DC Downtown / Capitol Hill / SW Waterfront Corridor",
+    "area_km2": 14.61,
+    "bbox": [
+      -77.03,
+      38.875,
+      -76.992,
+      38.915
+    ],
+    "coordinates": [
+      [
+        -77.03,
+        38.875
+      ],
+      [
+        -76.992,
+        38.875
+      ],
+      [
+        -76.992,
+        38.915
+      ],
+      [
+        -77.03,
+        38.915
+      ],
+      [
+        -77.03,
+        38.875
+      ]
+    ]
+  },
+  "resource_budget_k": 3,
+  "primary_catchment_radius_meters": 750,
+  "available_timestamps_utc": [
+    "14:00",
+    "16:00",
+    "18:00",
+    "20:00",
+    "22:00"
+  ],
+  "primary_transition": {
+    "now_timestamp_utc": "16:00",
+    "future_timestamp_utc": "20:00",
+    "now_optimal_selection": [
+      "DC_089",
+      "DC_148",
+      "DC_166"
+    ],
+    "future_optimal_selection": [
+      "DC_089",
+      "DC_135",
+      "DC_166"
+    ],
+    "replaced_facility": "DC_148",
+    "activated_facility": "DC_135"
+  },
+  "population_summary": {
+    "total_census_blocks": 887,
+    "total_residential_population": 100389,
+    "table_id": "2020 Decennial Census Table P1 (Total Population)",
+    "license": "Public Domain (U.S. Government Work)"
+  },
+  "provenance_registry": [
+    {
+      "provenance_id": "prov_census_2020_p1",
+      "scope": "INVARIANT",
+      "source_kind": "POPULATION",
+      "source_name": "U.S. Census Bureau 2020 Decennial Census Table P1",
+      "dataset_title": "2020 Census Blocks for District of Columbia",
+      "license_reference": "Public Domain (U.S. Government Work)",
+      "source_vintage": "2020"
+    },
+    {
+      "provenance_id": "prov_fortyguard_tcm_gate_b2",
+      "scope": "THERMAL_STATE",
+      "source_kind": "THERMAL_PRIORITY",
+      "source_name": "FortyGuard Temperature API (tcm, 100m)",
+      "dataset_title": "FortyGuard Urban Thermal Snapshots 2024-07-15",
+      "license_reference": "FortyGuard Commercial Hackathon API License",
+      "source_vintage": "2024-07-15"
+    },
+    {
+      "provenance_id": "prov_dc_facilities_octo",
+      "scope": "INVARIANT",
+      "source_kind": "FACILITY",
+      "source_name": "Open Data DC / OCTO Public Facilities Directory",
+      "dataset_title": "DC GIS Cooling Centers",
+      "license_reference": "Creative Commons CC0 1.0 Universal",
+      "source_vintage": "2024"
+    },
+    {
+      "provenance_id": "prov_coolaccess_config_v1",
+      "scope": "INVARIANT",
+      "source_kind": "CONFIGURATION",
+      "source_name": "CoolAccess Deterministic Phase 1 Engine",
+      "license_reference": "Proprietary",
+      "source_vintage": "2026"
+    }
+  ]
+}

@@ -1,0 +1,119 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -77.02221836,
+          38.91244216
+        ]
+      },
+      "properties": {
+        "facility_id": "DC_089",
+        "name": "Shaw Library - Watha T. Daniel",
+        "facility_type": "Library",
+        "address": "1630 7TH STREET NW",
+        "ward": "Ward 2",
+        "source_dataset": "DC GIS Cooling Centers (Public_Safety_WebMercator/17)",
+        "catchment_radius_m": 750
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -77.02476625,
+          38.89869166
+        ]
+      },
+      "properties": {
+        "facility_id": "DC_135",
+        "name": "Martin Luther King Jr. Memorial Library",
+        "facility_type": "Library",
+        "address": "901 G STREET NW",
+        "ward": "Ward 2",
+        "source_dataset": "DC GIS Cooling Centers (Public_Safety_WebMercator/17)",
+        "catchment_radius_m": 750
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -76.99643011,
+          38.89440853
+        ]
+      },
+      "properties": {
+        "facility_id": "DC_148",
+        "name": "Northeast Library",
+        "facility_type": "Library",
+        "address": "330 7TH STREET NE",
+        "ward": "Ward 6",
+        "source_dataset": "DC GIS Cooling Centers (Public_Safety_WebMercator/17)",
+        "catchment_radius_m": 750
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -76.99651546,
+          38.88408446
+        ]
+      },
+      "properties": {
+        "facility_id": "DC_159",
+        "name": "Southeast Library",
+        "facility_type": "Library",
+        "address": "403 7TH STREET SE",
+        "ward": "Ward 6",
+        "source_dataset": "DC GIS Cooling Centers (Public_Safety_WebMercator/17)",
+        "catchment_radius_m": 750
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -77.00905829,
+          38.87928592
+        ]
+      },
+      "properties": {
+        "facility_id": "DC_166",
+        "name": "Randall Recreation Center",
+        "facility_type": "Recreation Center",
+        "address": "SOUTH CAPITOL STREET AND I STREET SW",
+        "ward": "Ward 6 / SW",
+        "source_dataset": "DC GIS Cooling Centers (Public_Safety_WebMercator/17)",
+        "catchment_radius_m": 750
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -77.01583178,
+          38.87869795
+        ]
+      },
+      "properties": {
+        "facility_id": "DC_168",
+        "name": "Southwest Library",
+        "facility_type": "Library",
+        "address": "900 WESLEY PLACE SW",
+        "ward": "Ward 6",
+        "source_dataset": "DC GIS Cooling Centers (Public_Safety_WebMercator/17)",
+        "catchment_radius_m": 750
+      }
+    }
+  ]
+}

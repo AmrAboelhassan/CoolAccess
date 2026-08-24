@@ -1,0 +1,102 @@
+{
+  "city": "Washington, DC",
+  "aoi_name": "DC Downtown / Capitol Hill / SW Waterfront",
+  "aoi_area_km2": 14.61,
+  "total_candidate_facilities": 6,
+  "eligibility_rules": {
+    "included_types": [
+      "Library",
+      "Recreation Center"
+    ],
+    "excluded_types": [
+      "Indoor Pool",
+      "Outdoor Pool",
+      "Spray Park",
+      "Walk to Learn",
+      "Public Housing Senior Citizens",
+      "DHS Low Barrier Shelter",
+      "Private Low Barrier Shelter"
+    ],
+    "exclusion_rationale": "Focuses strictly on general public indoor municipal libraries and recreation centers; excludes open-air aquatic features, indoor pools requiring specialized swim gear/access, resident-restricted senior housing, and intake-controlled homeless shelters."
+  },
+  "facilities": [
+    {
+      "facility_id": "DC_089",
+      "source_object_id": 89,
+      "name": "Shaw Library - Watha T. Daniel",
+      "facility_type": "Library",
+      "address": "1630 7TH STREET NW",
+      "zipcode": "20001",
+      "ward": "Ward 2",
+      "latitude": 38.91244216,
+      "longitude": -77.02221836,
+      "source_dataset": "DC GIS Cooling Centers (Public_Safety_WebMercator/17)",
+      "source_license": "Creative Commons CC0 1.0 Universal"
+    },
+    {
+      "facility_id": "DC_135",
+      "source_object_id": 135,
+      "name": "Martin Luther King Jr. Memorial Library",
+      "facility_type": "Library",
+      "address": "901 G STREET NW",
+      "zipcode": "20001",
+      "ward": "Ward 2",
+      "latitude": 38.89869166,
+      "longitude": -77.02476625,
+      "source_dataset": "DC GIS Cooling Centers (Public_Safety_WebMercator/17)",
+      "source_license": "Creative Commons CC0 1.0 Universal"
+    },
+    {
+      "facility_id": "DC_148",
+      "source_object_id": 148,
+      "name": "Northeast Library",
+      "facility_type": "Library",
+      "address": "330 7TH STREET NE",
+      "zipcode": "20002",
+      "ward": "Ward 6",
+      "latitude": 38.89440853,
+      "longitude": -76.99643011,
+      "source_dataset": "DC GIS Cooling Centers (Public_Safety_WebMercator/17)",
+      "source_license": "Creative Commons CC0 1.0 Universal"
+    },
+    {
+      "facility_id": "DC_159",
+      "source_object_id": 159,
+      "name": "Southeast Library",
+      "facility_type": "Library",
+      "address": "403 7TH STREET SE",
+      "zipcode": "20003",
+      "ward": "Ward 6",
+      "latitude": 38.88408446,
+      "longitude": -76.99651546,
+      "source_dataset": "DC GIS Cooling Centers (Public_Safety_WebMercator/17)",
+      "source_license": "Creative Commons CC0 1.0 Universal"
+    },
+    {
+      "facility_id": "DC_166",
+      "source_object_id": 166,
+      "name": "Randall Recreation Center",
+      "facility_type": "Recreation Center",
+      "address": "SOUTH CAPITOL STREET AND I STREET SW",
+      "zipcode": null,
+      "ward": "Ward 6 / SW",
+      "latitude": 38.87928592,
+      "longitude": -77.00905829,
+      "source_dataset": "DC GIS Cooling Centers (Public_Safety_WebMercator/17)",
+      "source_license": "Creative Commons CC0 1.0 Universal"
+    },
+    {
+      "facility_id": "DC_168",
+      "source_object_id": 168,
+      "name": "Southwest Library",
+      "facility_type": "Library",
+      "address": "900 WESLEY PLACE SW",
+      "zipcode": "20024",
+      "ward": "Ward 6",
+      "latitude": 38.87869795,
+      "longitude": -77.01583178,
+      "source_dataset": "DC GIS Cooling Centers (Public_Safety_WebMercator/17)",
+      "source_license": "Creative Commons CC0 1.0 Universal"
+    }
+  ]
+}
