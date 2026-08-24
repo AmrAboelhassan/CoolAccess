@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -27,8 +28,12 @@ from coolaccess.contracts import (
 )
 from coolaccess.demand import canonical_decimal
 
-# Default path to packaged scenario data
-DEFAULT_DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "locked_dc_scenario"
+# Default path to packaged scenario data (supports COOLACCESS_DATA_DIR env override)
+DEFAULT_DATA_DIR = (
+    Path(os.environ["COOLACCESS_DATA_DIR"])
+    if "COOLACCESS_DATA_DIR" in os.environ
+    else Path(__file__).resolve().parent.parent.parent / "data" / "locked_dc_scenario"
+)
 
 
 def haversine_meters(lat1: float, lon1: float, lat2: float, lon2: float) -> float:

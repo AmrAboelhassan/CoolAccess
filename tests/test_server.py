@@ -108,3 +108,9 @@ def test_geojson_endpoints() -> None:
 def test_allocate_invalid_timestamp() -> None:
     response = client.get("/api/allocate?timestamp=99:99")
     assert response.status_code == 400
+
+
+def test_api_404_not_intercepted_by_spa() -> None:
+    # Non-existent API route must return 404, not SPA index.html
+    response = client.get("/api/non_existent_endpoint")
+    assert response.status_code == 404

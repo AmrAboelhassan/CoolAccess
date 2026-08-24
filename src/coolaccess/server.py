@@ -6,16 +6,78 @@ baseline comparisons, replacement evidence, and map GeoJSON layers.
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from coolaccess.analysis import analyze_future_state
 from coolaccess.contracts import CompleteBaselineResult
 from coolaccess.optimizer import optimize
 from coolaccess.replacement import build_replacement_evidence
 from coolaccess.scenario import ScenarioBundle, format_timestamp_display, load_locked_scenario
+
+
+def get_frontend_dist_dir() -> Path:
+    """Deterministically resolve the built frontend distribution directory.
+
+    Order of resolution:
+    1. COOLACCESS_FRONTEND_DIST environment variable
+    2. Source-tree package-relative default: <project_root>/frontend/dist
+    """
+    env_dir = os.environ.get("COOLACCESS_FRONTEND_DIST")
+    if env_dir:
+        return Path(env_dir)
+
+    project_root = Path(__file__).resolve().parent.parent.parent
+    return project_root / "frontend" / "dist"
+
+
+def mount_static_and_spa_routes(application: FastAPI, dist_dir: Path) -> None:
+    """Mount static assets and SPA fallback if frontend distribution exists."""
+    assets_dir = dist_dir / "assets"
+    if assets_dir.is_dir():
+        application.mount(
+            "/assets",
+            StaticFiles(directory=str(assets_dir)),
+            name="frontend-assets",
+        )
+
+    @application.get("/{full_path:path}", include_in_schema=False)
+    async def serve_spa_or_static(full_path: str) -> Response:
+        # Never intercept API, docs, or openapi routes
+        if (
+            full_path == "api"
+            or full_path.startswith("api/")
+            or full_path == "docs"
+            or full_path == "openapi.json"
+        ):
+            raise HTTPException(status_code=404, detail="Not Found")
+
+        if not dist_dir.is_dir():
+            raise HTTPException(status_code=404, detail="Frontend distribution not built")
+
+        # Check if requesting a direct static file in dist (e.g. favicon.ico, vite.svg)
+        if full_path:
+            candidate_file = (dist_dir / full_path).resolve()
+            dist_resolved = dist_dir.resolve()
+            try:
+                candidate_file.relative_to(dist_resolved)
+                if candidate_file.is_file():
+                    return FileResponse(str(candidate_file))
+            except ValueError:
+                raise HTTPException(status_code=404, detail="Not Found") from None
+
+        # SPA fallback: return index.html
+        index_file = dist_dir / "index.html"
+        if index_file.is_file():
+            return FileResponse(str(index_file))
+
+        raise HTTPException(status_code=404, detail="Frontend index.html not found")
 
 
 def create_app(scenario_bundle: ScenarioBundle | None = None) -> FastAPI:
@@ -348,6 +410,9 @@ def create_app(scenario_bundle: ScenarioBundle | None = None) -> FastAPI:
             return bundle.get_geojson(layer=layer, timestamp=timestamp)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
+
+    # Mount static assets and SPA fallback for unified single-origin deployment
+    mount_static_and_spa_routes(app, get_frontend_dist_dir())
 
     return app
 

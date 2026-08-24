@@ -6,11 +6,17 @@ build-backend = "setuptools.build_meta"
 name = "coolaccess"
 version = "0.1.0"
 description = "Provider-neutral deterministic allocation foundation for CoolAccess"
+readme = "README.md"
 requires-python = ">=3.11,<3.12"
-dependencies = ["pydantic>=2,<3"]
+dependencies = [
+  "fastapi>=0.115,<1",
+  "pydantic>=2,<3",
+  "uvicorn>=0.30,<1",
+]
 
 [project.optional-dependencies]
 dev = [
+  "httpx>=0.28,<1",
   "mypy>=1.13,<2",
   "pytest>=8,<10",
   "ruff>=0.8,<1",
@@ -44,3 +50,6 @@ strict = true
 packages = ["coolaccess"]
 explicit_package_bases = true
 mypy_path = ["src"]
+
+[tool.vercel]
+entrypoint = "src.coolaccess.server:app"
