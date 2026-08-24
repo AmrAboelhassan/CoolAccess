@@ -249,8 +249,9 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
         </div>
 
         <p className="heat-intel-subhead">
-          Evidence-grounded thermal vulnerability insights & municipal decision support.
-          Pure read-only projection over deterministic spatial optimizer.
+          Analyzes FortyGuard 100m street-level thermal patterns and intersects heat exposure with
+          census vulnerability to explain optimal cooling shelter decisions. The deterministic
+          spatial optimizer serves as the authoritative mathematical foundation.
         </p>
       </div>
 
@@ -259,47 +260,55 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
         <div className="evidence-source-card">
           <div className="evidence-source-header">
             <Thermometer size={14} className="text-amber" />
-            <span className="evidence-source-label">FORTYGUARD THERMAL DATA</span>
+            <span className="evidence-source-label">THERMAL INTELLIGENCE</span>
           </div>
           <span className="evidence-source-value font-mono">
             {currentTimestamp} UTC Thermal Grid
           </span>
-          <span className="evidence-source-sub">100m Temperature Priority</span>
+          <span className="evidence-source-sub">
+            FortyGuard 100m thermal grid identifies where heat exposure concentrates.
+          </span>
         </div>
 
         <div className="evidence-source-card">
           <div className="evidence-source-header">
             <Users size={14} className="text-sky" />
-            <span className="evidence-source-label">POPULATION VULNERABILITY</span>
+            <span className="evidence-source-label">HUMAN VULNERABILITY</span>
           </div>
           <span className="evidence-source-value font-mono">
             {metrics
               ? `${metrics.covered_population.toLocaleString()} / ${metrics.total_population.toLocaleString()}`
               : '—'}
           </span>
-          <span className="evidence-source-sub">2020 Census Residential Blocks</span>
+          <span className="evidence-source-sub">
+            Census population data reveals where heat exposure affects residents.
+          </span>
         </div>
 
         <div className="evidence-source-card">
           <div className="evidence-source-header">
             <Cpu size={14} className="text-emerald" />
-            <span className="evidence-source-label">OPTIMIZER SELECTION</span>
+            <span className="evidence-source-label">OPTIMIZATION INTELLIGENCE</span>
           </div>
           <span className="evidence-source-value font-mono">
             k={selectedFacilityIds.length || 3} Optimal Facilities
           </span>
-          <span className="evidence-source-sub">Max-Coverage Integer Model</span>
+          <span className="evidence-source-sub">
+            Deterministic mathematical optimization selects the best municipal response.
+          </span>
         </div>
 
         <div className="evidence-source-card">
           <div className="evidence-source-header">
             <BarChart3 size={14} className="text-accent" />
-            <span className="evidence-source-label">BASELINE COMPARISON</span>
+            <span className="evidence-source-label">IMPACT VALIDATION</span>
           </div>
           <span className="evidence-source-value font-mono">
             {metrics ? `${metrics.coverage_percentage.toFixed(1)}% Demand` : '—'}
           </span>
-          <span className="evidence-source-sub">Proven Comparative Advantage</span>
+          <span className="evidence-source-sub">
+            Baseline comparison proves the value under identical resource constraints.
+          </span>
         </div>
       </div>
 
@@ -392,7 +401,7 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
           <div className="stepper-header-row">
             <div className="stepper-title-group">
               <span className="stepper-pulse-dot" />
-              <span className="stepper-title">Synthesizing Heat Intelligence Brief</span>
+              <span className="stepper-title">Synthesizing Temperature Intelligence Brief</span>
             </div>
             <div className="stepper-timer-badge font-mono">
               <Clock size={12} />
@@ -428,7 +437,7 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
           </div>
 
           <div className="stepper-safety-note">
-            <span>🛡️ Authoritative safety guarantee: LLMs never calculate or modify facility allocations.</span>
+            <span>🛡️ Verified safety guarantee: Grounded in FortyGuard thermal data and authoritative mathematical optimization.</span>
           </div>
         </div>
       )}

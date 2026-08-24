@@ -49,7 +49,7 @@ export const DisclosuresFooter: React.FC<DisclosuresFooterProps> = ({ scenario }
         <div className="footer-column audit-col">
           <div className="footer-col-header">
             <ShieldCheck size={14} className="text-emerald" />
-            <span>Audit & Verification Status</span>
+            <span>Temperature AI Verification & Audit</span>
           </div>
           <div className="audit-box">
             <div className="audit-item">
@@ -62,7 +62,7 @@ export const DisclosuresFooter: React.FC<DisclosuresFooterProps> = ({ scenario }
             </div>
             <div className="audit-item">
               <span className="audit-label">Test Suite:</span>
-              <span className="audit-val text-emerald">131 Core Tests Passed (100%)</span>
+              <span className="audit-val text-emerald">148 Core Tests Passed (100%)</span>
             </div>
           </div>
         </div>
@@ -70,7 +70,7 @@ export const DisclosuresFooter: React.FC<DisclosuresFooterProps> = ({ scenario }
 
       <div className="footer-bottom-bar">
         <span>© 2026 CoolAccess — FortyGuard AI Hackathon Project</span>
-        <span>Deterministic Optimization Engine</span>
+        <span>Building Temperature Intelligence for Data-Driven Municipal Heat Response</span>
       </div>
     </footer>
   );

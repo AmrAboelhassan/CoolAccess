@@ -50,7 +50,7 @@ export const BaselineComparison: React.FC<BaselineComparisonProps> = ({
           <div className="key-gain-badge">
             <TrendingUp size={16} />
             <span>
-              +{staticGainPct.toFixed(2)}% Heat Protection Gain ({staticGain >= 0 ? `+${staticGain.toFixed(2)}` : staticGain.toFixed(2)} Demand Units) | $0 Budget Increase
+              +{staticGainPct.toFixed(2)}% Heat Protection Gain (+{staticGain >= 0 ? `+${staticGain.toFixed(2)}` : staticGain.toFixed(2)} Demand Units) | $0 Budget Increase
             </span>
           </div>
         ) : (
@@ -66,12 +66,12 @@ export const BaselineComparison: React.FC<BaselineComparisonProps> = ({
         <div className="summary-stat-cell">
           <span className="summary-stat-label">DYNAMIC OPTIMIZATION GAIN</span>
           <span className="summary-stat-value text-emerald font-mono">
-            {hasStaticAdvantage ? `+${staticGainPct.toFixed(1)}%` : '0.0%'}
+            {hasStaticAdvantage ? `+${staticGainPct.toFixed(1)}%` : 'Baseline Parity'}
           </span>
           <span className="summary-stat-sub">
             {hasStaticAdvantage
               ? `+${staticGain.toFixed(2)} heat demand units protected`
-              : 'Matches initial baseline'}
+              : `At ${currentTimestamp} UTC, optimal allocation matches static configuration`}
           </span>
         </div>
 
@@ -81,7 +81,9 @@ export const BaselineComparison: React.FC<BaselineComparisonProps> = ({
             {staticPopDelta > 0 ? `+${staticPopDelta.toLocaleString()}` : `${staticPopDelta.toLocaleString()}`}
           </span>
           <span className="summary-stat-sub">
-            vs {staticBaseline?.source_timestamp || 'initial'} static allocation
+            {hasStaticAdvantage
+              ? `vs ${staticBaseline?.source_timestamp || 'initial'} static allocation`
+              : 'Advantage unlocks as thermal conditions shift across diurnal cycle'}
           </span>
         </div>
 
@@ -169,7 +171,7 @@ export const BaselineComparison: React.FC<BaselineComparisonProps> = ({
           <p className="comp-summary-text">
             {staticGain > 0
               ? `Keeps ${staticBaseline?.source_timestamp || 'earlier'} allocation active into current horizon, failing to shift resources where late-day thermal inertia peaks.`
-              : 'Identical to baseline configuration at this time horizon.'}
+              : `At the current ${currentTimestamp} UTC horizon, the optimal allocation matches the static configuration because thermal conditions have not yet shifted. The advantage appears during diurnal transitions when heat retention patterns change.`}
           </p>
         </div>
 

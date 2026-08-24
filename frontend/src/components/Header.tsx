@@ -17,10 +17,10 @@ export const Header: React.FC<HeaderProps> = ({ scenario, currentTimestamp }) =>
         <div className="brand-text">
           <div className="brand-title-row">
             <h1 className="brand-title">CoolAccess</h1>
-            <span className="system-pill">MUNICIPAL GIS DASHBOARD</span>
+            <span className="system-pill">TEMPERATURE AI PLATFORM</span>
           </div>
           <p className="brand-subtitle">
-            Dynamic Cooling Resource Allocation under Diurnal Heat Waves
+            Temperature AI Decision Platform for Municipal Heat Resilience & Dynamic Cooling Infrastructure
           </p>
         </div>
       </div>
@@ -35,7 +35,7 @@ export const Header: React.FC<HeaderProps> = ({ scenario, currentTimestamp }) =>
             {scenario ? `${scenario.city} (${scenario.aoi?.name || 'Corridor'})` : 'Washington, DC'}
           </div>
           <div className="meta-sub">
-            {scenario?.aoi?.area_km2 ? `${scenario.aoi.area_km2} km² Contiguous AOI` : '14.61 km² AOI'}
+            {scenario?.aoi?.area_km2 ? `${scenario.aoi.area_km2} km² Contiguous Thermal Corridor` : '14.61 km² AOI'}
           </div>
         </div>
 
@@ -47,7 +47,7 @@ export const Header: React.FC<HeaderProps> = ({ scenario, currentTimestamp }) =>
           <div className="meta-value">
             {scenario?.historical_date || '2024-07-15'} (Heatwave)
           </div>
-          <div className="meta-sub">Active: {currentTimestamp} UTC</div>
+          <div className="meta-sub">Active Horizon: {currentTimestamp} UTC</div>
         </div>
 
         <div className="meta-card highlight">
@@ -59,14 +59,14 @@ export const Header: React.FC<HeaderProps> = ({ scenario, currentTimestamp }) =>
             K = {scenario?.resource_budget_k ?? 3} Active Facilities
           </div>
           <div className="meta-sub">
-            {scenario?.catchment_radius_meters ?? 750}m Geographic Catchment
+            {scenario?.catchment_radius_meters ?? 750}m Thermal Catchment
           </div>
         </div>
 
         <div className="meta-card">
           <div className="meta-label">
             <Users size={13} className="meta-icon" />
-            <span>Census Population</span>
+            <span>Protected Population Base</span>
           </div>
           <div className="meta-value">
             {scenario?.population_summary?.total_residential_population?.toLocaleString() ?? '100,389'}
@@ -77,3 +77,4 @@ export const Header: React.FC<HeaderProps> = ({ scenario, currentTimestamp }) =>
     </header>
   );
 };
+

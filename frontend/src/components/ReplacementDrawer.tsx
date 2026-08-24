@@ -79,9 +79,9 @@ export const ReplacementDrawer: React.FC<ReplacementDrawerProps> = ({
         <div className="drawer-title-group">
           <ArrowLeftRight size={18} className="text-sky" />
           <div>
-            <h3 className="section-title">1-for-1 Facility Replacement Evidence & Decision Logic</h3>
+            <h3 className="section-title">AI Explainability: Why This Facility Was Selected</h3>
             <p className="section-subtitle">
-              Inspect why replacing an optimally selected facility with an alternative reduces protected heat demand.
+              The AI analyst translates optimization decisions into understandable municipal reasoning using verified thermal and population evidence.
             </p>
           </div>
         </div>
@@ -180,13 +180,13 @@ export const ReplacementDrawer: React.FC<ReplacementDrawerProps> = ({
           <div className="rep-explanation-box">
             <div className="explanation-header">
               <Info size={16} className="text-sky" />
-              <span className="exp-heading">Empirical Physical Mechanism</span>
+              <span className="exp-heading">Thermal Priority & Human Exposure Mechanism</span>
             </div>
 
             <p className="exp-paragraph">{primary.explanation}</p>
 
             <div className="exp-takeaway">
-              <strong>Key Municipal Takeaway:</strong> High residential headcounts in tree-canopied zones (e.g. Northeast Library) cool down quickly in late afternoon ($w \approx 0.06$). Meanwhile, downtown commercial masonry retaining thermal mass ($w \approx 0.22$) generates over $3\times$ higher urgent heat protection demand per resident.
+              <strong>Core Municipal Principle:</strong> Temperature alone does not define heat risk. CoolAccess combines FortyGuard 100m thermal intensity with Census population exposure to ensure cooling centers protect where heat exposure creates the highest human impact, rather than simply selecting the hottest unpopulated zones.
             </div>
           </div>
         </div>
