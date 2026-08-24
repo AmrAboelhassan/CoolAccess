@@ -73,6 +73,19 @@ export const ReplacementDrawer: React.FC<ReplacementDrawerProps> = ({
 
   const primary = replacementData?.primary_replacement;
 
+  const formattedExplanation = React.useMemo(() => {
+    if (!primary?.explanation) return '';
+    return primary.explanation
+      .replace(
+        /While the alternative covers -(\d+) raw residents/g,
+        (_, num) => `The substitution reduces protected population coverage by ${Number(num).toLocaleString()} residents`
+      )
+      .replace(
+        /While the alternative covers \+(\d+) raw residents/g,
+        (_, num) => `While the alternative covers ${Number(num).toLocaleString()} more raw residents`
+      );
+  }, [primary?.explanation]);
+
   return (
     <div className="replacement-drawer-panel">
       <div className="drawer-header-row">
@@ -154,9 +167,13 @@ export const ReplacementDrawer: React.FC<ReplacementDrawerProps> = ({
             </div>
 
             <div className="rep-metric-row">
-              <span className="rep-metric-label">Raw 2020 Census Population Delta:</span>
+              <span className="rep-metric-label">2020 Census Population Delta:</span>
               <span className="rep-metric-val">
-                {primary.population_delta > 0 ? `+${primary.population_delta.toLocaleString()}` : primary.population_delta.toLocaleString()} Residents
+                {primary.population_delta > 0
+                  ? `+${primary.population_delta.toLocaleString()} Residents`
+                  : primary.population_delta < 0
+                  ? `-${Math.abs(primary.population_delta).toLocaleString()} Residents (${Math.abs(primary.population_delta).toLocaleString()} fewer)`
+                  : '0 Residents Delta'}
               </span>
             </div>
 
@@ -183,7 +200,7 @@ export const ReplacementDrawer: React.FC<ReplacementDrawerProps> = ({
               <span className="exp-heading">Thermal Priority & Human Exposure Mechanism</span>
             </div>
 
-            <p className="exp-paragraph">{primary.explanation}</p>
+            <p className="exp-paragraph">{formattedExplanation || primary.explanation}</p>
 
             <div className="exp-takeaway">
               <strong>Core Municipal Principle:</strong> Temperature alone does not define heat risk. CoolAccess combines FortyGuard 100m thermal intensity with Census population exposure to ensure cooling centers protect where heat exposure creates the highest human impact, rather than simply selecting the hottest unpopulated zones.
