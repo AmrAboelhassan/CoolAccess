@@ -16,6 +16,7 @@ import { HeatIntelligencePanel } from './components/HeatIntelligencePanel';
 import { BaselineComparison } from './components/BaselineComparison';
 import { ReplacementDrawer } from './components/ReplacementDrawer';
 import { DisclosuresFooter } from './components/DisclosuresFooter';
+import { ProcessingOverlay } from './components/ProcessingOverlay';
 import './App.css';
 
 export function App() {
@@ -35,6 +36,7 @@ export function App() {
   // Loading & error state
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [showProcessingOverlay, setShowProcessingOverlay] = useState<boolean>(true);
 
   // Unified atomic data loader
   const loadData = useCallback(async (timestamp: string, isInitial: boolean = false) => {
@@ -203,6 +205,14 @@ export function App() {
 
       {/* Disclosures & Provenance Footer */}
       <DisclosuresFooter scenario={scenario} />
+
+      {/* Staged Temperature AI Processing Experience for Demo */}
+      {showProcessingOverlay && (
+        <ProcessingOverlay
+          isDataReady={!loading && scenario !== null && allocation !== null}
+          onComplete={() => setShowProcessingOverlay(false)}
+        />
+      )}
     </div>
   );
 }

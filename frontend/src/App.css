@@ -2262,3 +2262,296 @@
   line-height: 1.4;
 }
 
+/* ----------------------------------------------------
+   12. Temperature AI Processing Sequence Overlay
+---------------------------------------------------- */
+.processing-overlay-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(9, 13, 22, 0.88);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 20px;
+  animation: fadeInOverlay 0.25s ease-out;
+}
+
+@keyframes fadeInOverlay {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.processing-modal-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 40px rgba(2, 132, 199, 0.15);
+  width: 100%;
+  max-width: 580px;
+  padding: 28px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  animation: scaleInModal 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes scaleInModal {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.processing-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 16px;
+}
+
+.processing-brand-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  background: rgba(2, 132, 199, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  border-radius: var(--radius-md);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.2);
+}
+
+.processing-brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.processing-brand-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.processing-title {
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.processing-tag {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: rgba(56, 189, 248, 0.1);
+  color: var(--brand-accent);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+}
+
+.processing-sub {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* Steps Tracker */
+.processing-steps-tracker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px;
+}
+
+.tracker-step {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.tracker-step:last-child {
+  flex: 0 0 auto;
+}
+
+.tracker-node {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-default);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  transition: all 0.25s ease;
+  flex-shrink: 0;
+}
+
+.tracker-step.active .tracker-node {
+  background: rgba(2, 132, 199, 0.2);
+  border-color: #38bdf8;
+  color: #38bdf8;
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.4);
+  transform: scale(1.1);
+}
+
+.tracker-step.completed .tracker-node {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: #10b981;
+  color: #10b981;
+}
+
+.node-icon-completed {
+  color: #10b981;
+}
+
+.tracker-line {
+  flex: 1;
+  height: 2px;
+  background: var(--border-subtle);
+  margin: 0 6px;
+  transition: background 0.25s ease;
+}
+
+.tracker-step.completed .tracker-line {
+  background: #10b981;
+}
+
+/* Active Stage Callout Box */
+.processing-active-stage-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  background: var(--bg-app);
+  border: 1px solid var(--border-active);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 0 20px rgba(2, 132, 199, 0.06);
+}
+
+.processing-active-stage-box::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #0284c7, #38bdf8, #10b981);
+}
+
+.active-stage-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  background: rgba(2, 132, 199, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: var(--radius-md);
+  color: #38bdf8;
+  flex-shrink: 0;
+  animation: pulseIcon 1.5s infinite ease-in-out;
+}
+
+@keyframes pulseIcon {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 rgba(56, 189, 248, 0);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 16px rgba(56, 189, 248, 0.35);
+  }
+}
+
+.active-stage-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.active-stage-tag-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stage-step-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--brand-accent);
+  letter-spacing: 0.06em;
+  font-family: var(--font-mono);
+}
+
+.stage-code-tag {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-surface-raised);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+}
+
+.active-stage-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 2px 0 0 0;
+}
+
+.active-stage-subtitle {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* Footer Pipeline Status */
+.processing-footer-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  padding-top: 4px;
+}
+
+.pipeline-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981;
+  animation: pulseDot 1.2s infinite ease-in-out;
+}
+
+@keyframes pulseDot {
+  0%, 100% { opacity: 0.4; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
+.pipeline-status-text {
+  color: var(--text-secondary);
+}
+
+
