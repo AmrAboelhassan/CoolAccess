@@ -249,9 +249,9 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
         </div>
 
         <p className="heat-intel-subhead">
-          Analyzes FortyGuard 100m street-level thermal patterns and intersects heat exposure with
-          census vulnerability to explain optimal cooling shelter decisions. The deterministic
-          spatial optimizer serves as the authoritative mathematical foundation.
+          Temperature AI explains and validates municipal heat decisions using FortyGuard 100m
+          thermal patterns and census vulnerability, while the deterministic spatial optimizer
+          remains the authoritative decision engine.
         </p>
       </div>
 

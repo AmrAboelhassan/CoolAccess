@@ -71,7 +71,7 @@ export const BaselineComparison: React.FC<BaselineComparisonProps> = ({
           <span className="summary-stat-sub">
             {hasStaticAdvantage
               ? `+${staticGain.toFixed(2)} heat demand units protected via dynamic shelter shift`
-              : `The system detects no required reallocation at ${currentTimestamp} UTC because thermal conditions have not shifted yet. Dynamic advantages emerge during evening heat retention transitions.`}
+              : 'The system detects no required reallocation at the current horizon because thermal conditions have not shifted yet. Dynamic advantages emerge as heat retention patterns evolve later in the day.'}
           </span>
         </div>
 
@@ -171,7 +171,7 @@ export const BaselineComparison: React.FC<BaselineComparisonProps> = ({
           <p className="comp-summary-text">
             {staticGain > 0
               ? `Keeps ${staticBaseline?.source_timestamp || 'earlier'} allocation active into current horizon, failing to shift resources where late-day thermal inertia peaks.`
-              : `The system detects no required reallocation at ${currentTimestamp} UTC because thermal conditions have not shifted yet. Dynamic advantages emerge during evening heat retention transitions.`}
+              : 'No reallocation is required at this horizon. The advantage appears when diurnal heat retention changes spatial thermal priorities.'}
           </p>
         </div>
 
