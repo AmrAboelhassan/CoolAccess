@@ -15,7 +15,7 @@ The product's central proof is:
 
 ## Current Status
 
-**Production-Ready Deterministic P0 Application Implemented & Verified**
+**Verified Deterministic Core & Interactive Decision Prototype**
 
 * **Validated Empirical Benchmark:** Washington, DC scenario locked and empirically verified using real FortyGuard street-level thermal evidence and official 2020 U.S. Census population data.
 * **Deterministic FastAPI Backend:** Strict Pydantic contracts, exact Decimal demand calculations, exhaustive combinatorial maximum-coverage optimizer, baseline models, and replacement loss evidence.
@@ -54,7 +54,7 @@ CoolAccess includes a fully validated, provenance-tracked empirical scenario for
 
 ---
 
-## 3. Architecture & Application Components
+## 3. Architecture & Role of AI
 
 ```
 +--------------------------------------------------------+
@@ -80,13 +80,27 @@ CoolAccess includes a fully validated, provenance-tracked empirical scenario for
 +--------------------------------------------------------+
 ```
 
-* **FastAPI Backend (`src/coolaccess/`):** Provider-neutral REST API providing scenario metadata, allocation optimization, baseline calculations, replacement matrices, and GeoJSON GIS layers.
-* **React Frontend (`frontend/`):** Modern desktop GIS decision canvas with Leaflet mapping, diurnal timeline controls, performance metrics, facility cards, baseline comparison cards, and a replacement evidence drawer.
-* **Domain & Contracts:** Strict Pydantic v2 domain models using finite Decimal arithmetic, canonical serialization, and full-state SHA-256 fingerprinting for absolute repeatability.
+### Deterministic Decision Authority vs. AI Augmentation
+
+* **Deterministic Decision Authority:** In municipal and emergency heat response, critical resource allocation decisions cannot be delegated to probabilistic or generative models. The CoolAccess combinatorial optimizer holds exclusive mathematical authority over all facility allocations, baseline evaluations, and replacement losses.
+* **Bounded AI Strategy:** Any future AI/LLM components (such as an Evidence Narrator or Operations Copilot) are architected strictly as read-only, evidence-grounded explanation layers. The AI layer translates structured replacement evidence and provenance records into natural-language briefs, with zero authority to alter numerical outputs, constraints, or facility selections.
+* **Fail-Closed Independence:** CoolAccess is completely self-contained and fully functional without an external LLM dependency or API key.
 
 ---
 
-## 4. Local Development & Verification
+## 4. Interactive Demo Walkthrough
+
+The single-page GIS application demonstrates the municipal decision workflow across five key states:
+
+1. **Scenario Canvas:** View the Washington, DC bounding corridor (`14.61 km²`), all 6 eligible public facilities, and the fixed budget constraint ($K = 3$).
+2. **Midday Optimal Allocation (`16:00 UTC`):** Observe the midday thermal pattern and initial optimal facility subset (`{DC_089, DC_148, DC_166}`).
+3. **Diurnal Heat Shift (`20:00 UTC`):** Advance the timeline slider to late afternoon. The map and metrics update atomically, dynamically replacing `DC_148` with `DC_135` (MLK Jr. Memorial Library) as commercial canyon heat persists.
+4. **Baseline Proof Panel:** Directly compare the dynamic allocation against the **Static Baseline** (retaining midday facilities: **`+23.81%` gain**) and the **Naive Thermal Baseline**.
+5. **1-for-1 Replacement Drawer:** Open detailed replacement evidence explaining why `DC_135` outperforms `DC_148` and other unselected alternatives based on unique heat-weighted population coverage.
+
+---
+
+## 5. Local Development & Verification
 
 ### Prerequisites
 * Python 3.11+
@@ -132,7 +146,7 @@ cd frontend && npm run build
 
 ---
 
-## 5. Documentation
+## 6. Documentation
 
 - [Competition specification](docs/COOLACCESS_COMPETITION_SPEC_V1.md) - canonical product scope and Definition of Done
 - [Product and demo](docs/PRODUCT_AND_DEMO.md) - user journey, interface states, baselines, and 90-150 second demo script
@@ -147,7 +161,7 @@ cd frontend && npm run build
 
 ---
 
-## 6. Product Boundary
+## 7. Product Boundary
 
 CoolAccess has one primary user: a municipal heat-response, resilience, emergency-management, or public-facilities team. It supports one decision: which eligible existing facilities should receive limited activation or extended-service priority under a fixed facility constraint.
 
@@ -157,7 +171,7 @@ Verified operating hours may strengthen the scenario but are not required. Witho
 
 ---
 
-## 7. Decision Integrity
+## 8. Decision Integrity
 
 - FortyGuard temperature data remains essential and central.
 - The deterministic combinatorial optimizer owns 100% of authoritative allocation and prioritization decisions.
@@ -171,7 +185,7 @@ Verified operating hours may strengthen the scenario but are not required. Witho
 
 ---
 
-## 8. Confirmed Competition Context
+## 9. Confirmed Competition Context
 
 FortyGuard provides 2-meter street-level ambient air temperature; real and near-real-time data; history from January 1, 2021; approximately 20-meter resolution; hour-by-hour data; forecasts up to 12 hours; and U.S.-only hackathon coverage. External datasets are allowed when their licenses are respected and FortyGuard remains central.
 
