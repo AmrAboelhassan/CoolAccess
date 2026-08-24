@@ -102,11 +102,15 @@ export const ReplacementDrawer: React.FC<ReplacementDrawerProps> = ({
       )
       .replace(
         /substantially higher late-afternoon thermal priority/gi,
-        'higher heat-weighted thermal priority'
+        'higher heat-weighted exposure priority'
       )
       .replace(
         /higher late-afternoon thermal priority/gi,
-        'higher heat-weighted thermal priority'
+        'higher heat-weighted exposure priority'
+      )
+      .replace(
+        /higher heat-weighted thermal priority/gi,
+        'higher heat-weighted exposure priority'
       );
   }, [primary?.explanation]);
 

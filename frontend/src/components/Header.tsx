@@ -35,7 +35,7 @@ export const Header: React.FC<HeaderProps> = ({ scenario, currentTimestamp }) =>
             {scenario ? `${scenario.city} (${scenario.aoi?.name || 'Corridor'})` : 'Washington, DC'}
           </div>
           <div className="meta-sub">
-            {scenario?.aoi?.area_km2 ? `${scenario.aoi.area_km2} km² Contiguous AOI` : '14.61 km² AOI'}
+            {scenario?.aoi?.area_km2 ? `${scenario.aoi.area_km2} km² Contiguous Thermal Corridor` : '14.61 km² AOI'}
           </div>
         </div>
 

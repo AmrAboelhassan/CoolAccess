@@ -116,7 +116,7 @@ export const BaselineComparison: React.FC<BaselineComparisonProps> = ({
             $0 Cost Increase
           </span>
           <span className="summary-stat-sub">
-            Same k={budgetK || 3} municipal resource budget
+            Same k={budgetK || 3} municipal resource constraint
           </span>
         </div>
       </div>
