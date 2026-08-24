@@ -85,11 +85,19 @@ export const ReplacementDrawer: React.FC<ReplacementDrawerProps> = ({
     if (!primary?.explanation) return '';
     return primary.explanation
       .replace(
-        /While the alternative covers -(\d+) raw residents/g,
-        (_, num) => `The substitution reduces protected population coverage by ${Number(num).toLocaleString()} residents`
+        /While the alternative covers -(\d+) raw residents,\s*the optimal facility/gi,
+        (_, num) => `The substitution reduces protected population coverage by ${Number(num).toLocaleString()} residents. The optimal facility`
       )
       .replace(
-        /While the alternative covers \+(\d+) raw residents/g,
+        /While the alternative covers -(\d+) raw residents/gi,
+        (_, num) => `The substitution reduces protected population coverage by ${Number(num).toLocaleString()} residents.`
+      )
+      .replace(
+        /The substitution reduces protected population coverage by ([\d,]+) residents,\s*the optimal facility/gi,
+        (_, num) => `The substitution reduces protected population coverage by ${num} residents. The optimal facility`
+      )
+      .replace(
+        /While the alternative covers \+(\d+) raw residents/gi,
         (_, num) => `While the alternative covers ${Number(num).toLocaleString()} more raw residents`
       );
   }, [primary?.explanation]);

@@ -227,7 +227,7 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
         <div className="heat-intel-header-top">
           <div className="heat-intel-brand">
             <span className="heat-intel-pulse-dot" aria-hidden="true">●</span>
-            <span className="heat-intel-title">Temperature AI Intelligence Layer</span>
+            <span className="heat-intel-title">Temperature AI Decision Intelligence Layer</span>
           </div>
 
           {brief && (

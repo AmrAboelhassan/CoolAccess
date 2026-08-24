@@ -169,7 +169,7 @@ export function App() {
         </section>
       </main>
 
-      {/* Temperature AI Intelligence Layer & Municipal Heat Analyst */}
+      {/* Temperature AI Decision Intelligence Layer & Municipal Heat Analyst */}
       <section className="dashboard-section">
         <HeatIntelligencePanel
           currentTimestamp={currentTimestamp}
