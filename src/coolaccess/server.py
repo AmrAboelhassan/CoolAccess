@@ -15,8 +15,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from coolaccess.agent import HeatBriefRequest, HeatBriefResponse, generate_heat_brief
 from coolaccess.analysis import analyze_future_state
 from coolaccess.contracts import CompleteBaselineResult
+from coolaccess.model_gateway import get_runtime_model_gateway
 from coolaccess.optimizer import optimize
 from coolaccess.replacement import build_replacement_evidence
 from coolaccess.scenario import ScenarioBundle, format_timestamp_display, load_locked_scenario
@@ -410,6 +412,35 @@ def create_app(scenario_bundle: ScenarioBundle | None = None) -> FastAPI:
             return bundle.get_geojson(layer=layer, timestamp=timestamp)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
+
+    @app.post("/api/heat-intelligence/brief", response_model=HeatBriefResponse)
+    def heat_intelligence_brief(
+        request: HeatBriefRequest,
+    ) -> HeatBriefResponse:
+        """Generate an evidence-grounded municipal heat intelligence brief."""
+        try:
+            target_req = bundle.build_allocation_request(
+                timestamp=request.timestamp,
+                radius_meters=request.radius_meters,
+                k=request.k,
+            )
+            baseline_req = bundle.build_allocation_request(
+                timestamp=request.baseline_timestamp,
+                radius_meters=request.radius_meters,
+                k=request.k,
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
+        prior_res = optimize(baseline_req)
+        analysis = analyze_future_state(target_req, prior_res)
+        gateway = get_runtime_model_gateway()
+        return generate_heat_brief(
+            request=request,
+            scenario_bundle=bundle,
+            analysis_result=analysis,
+            gateway=gateway,
+        )
 
     # Mount static assets and SPA fallback for unified single-origin deployment
     mount_static_and_spa_routes(app, get_frontend_dist_dir())

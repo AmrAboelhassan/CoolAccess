@@ -1,5 +1,14 @@
-"""CoolAccess provider-neutral deterministic allocation foundation."""
-
+from coolaccess.agent import (
+    BriefItem,
+    CopilotStatus,
+    DisabledModelGateway,
+    FakeModelGateway,
+    HeatBriefRequest,
+    HeatBriefResponse,
+    IntentCode,
+    ToolName,
+    generate_heat_brief,
+)
 from coolaccess.analysis import analyze_future_state
 from coolaccess.baselines import evaluate_naive_baseline, evaluate_static_baseline
 from coolaccess.contracts import (
@@ -22,6 +31,7 @@ from coolaccess.contracts import (
 from coolaccess.coverage import evaluate_coverage
 from coolaccess.demand import calculate_heat_weighted_demand
 from coolaccess.metrics import calculate_coverage_percentage, compare_with_baseline
+from coolaccess.model_gateway import get_runtime_model_gateway
 from coolaccess.optimizer import optimize
 from coolaccess.replacement import (
     build_marginal_addition_evidence,
@@ -39,15 +49,23 @@ __all__ = [
     "BaselineAlgorithm",
     "BaselineComparison",
     "BaselineResult",
+    "BriefItem",
     "ConfigurationReference",
+    "CopilotStatus",
+    "DisabledModelGateway",
     "EligibilityStatus",
     "FacilityDefinition",
+    "FakeModelGateway",
+    "HeatBriefRequest",
+    "HeatBriefResponse",
+    "IntentCode",
     "MarginalAdditionEvidence",
     "MarginalAdditionEvidenceSet",
     "PopulationCell",
     "ProvenanceRecord",
     "ReplacementEvidence",
     "ScenarioBundle",
+    "ToolName",
     "analyze_future_state",
     "app",
     "build_marginal_addition_evidence",
@@ -60,6 +78,8 @@ __all__ = [
     "evaluate_coverage",
     "evaluate_naive_baseline",
     "evaluate_static_baseline",
+    "generate_heat_brief",
+    "get_runtime_model_gateway",
     "load_locked_scenario",
     "optimize",
 ]

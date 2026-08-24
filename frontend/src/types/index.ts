@@ -183,3 +183,40 @@ export interface GeoJSONFeatureCollection {
   features: GeoJSONFeature[];
   metadata?: Record<string, any>;
 }
+
+export type IntentCode =
+  | 'ALLOCATION_SUMMARY'
+  | 'DIURNAL_HEAT_TRANSITION'
+  | 'HEAT_VULNERABILITY_EXPLANATION'
+  | 'REPLACEMENT_RATIONALE'
+  | 'BASELINE_COMPARISON';
+
+export type CopilotStatus = 'AI_GENERATED' | 'DETERMINISTIC_FALLBACK';
+
+export interface BriefItem {
+  claim_id: string;
+  server_rendered_text: string;
+  facility_id?: string;
+  alternative_id?: string;
+}
+
+export interface HeatBriefRequest {
+  question: string;
+  timestamp?: string;
+  baseline_timestamp?: string;
+  radius_meters?: number;
+  k?: number;
+}
+
+export interface HeatBriefResponse {
+  status: CopilotStatus;
+  intent_code: IntentCode;
+  scenario_id: string;
+  plan_fingerprint: string;
+  title: string;
+  brief_items: BriefItem[];
+  tools_used: string[];
+  requested_highlights: string[];
+  mandatory_caveats: string[];
+  fallback_reason?: string;
+}

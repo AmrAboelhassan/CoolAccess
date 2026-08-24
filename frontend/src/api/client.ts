@@ -3,6 +3,8 @@ import {
   AllocationResponse,
   ReplacementResponse,
   GeoJSONFeatureCollection,
+  HeatBriefRequest,
+  HeatBriefResponse,
 } from '../types';
 
 const API_BASE = '/api';
@@ -66,6 +68,23 @@ export async function fetchGeoJSON(
   const res = await fetch(`${API_BASE}/geojson?${params.toString()}`);
   if (!res.ok) {
     throw new Error(`Failed to load GeoJSON layer '${layer}': ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchHeatBrief(
+  request: HeatBriefRequest
+): Promise<HeatBriefResponse> {
+  const res = await fetch(`${API_BASE}/heat-intelligence/brief`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(errorData.detail || `Heat intelligence brief request failed: ${res.status}`);
   }
   return res.json();
 }

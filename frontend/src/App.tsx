@@ -12,6 +12,7 @@ import { MapView } from './components/MapView';
 import { ThermalLegend } from './components/ThermalLegend';
 import { MetricsSummary } from './components/MetricsSummary';
 import { FacilityList } from './components/FacilityList';
+import { HeatIntelligencePanel } from './components/HeatIntelligencePanel';
 import { BaselineComparison } from './components/BaselineComparison';
 import { ReplacementDrawer } from './components/ReplacementDrawer';
 import { DisclosuresFooter } from './components/DisclosuresFooter';
@@ -172,6 +173,17 @@ export function App() {
           />
         </section>
       </main>
+
+      {/* Temperature AI Intelligence Layer & Municipal Heat Analyst */}
+      <section className="dashboard-section">
+        <HeatIntelligencePanel
+          currentTimestamp={currentTimestamp}
+          facilities={facilities}
+          metrics={allocation?.coverage_metrics || null}
+          selectedFacilityIds={allocation?.selected_facility_ids || []}
+          onSelectFacility={handleSelectFacility}
+        />
+      </section>
 
       {/* Bottom Proof Section: Baseline Comparison */}
       <section className="dashboard-section">

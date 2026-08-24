@@ -114,3 +114,21 @@ def test_api_404_not_intercepted_by_spa() -> None:
     # Non-existent API route must return 404, not SPA index.html
     response = client.get("/api/non_existent_endpoint")
     assert response.status_code == 404
+
+
+def test_heat_intelligence_brief_endpoint() -> None:
+    payload = {
+        "question": "What changed in thermal exposure between 16:00 and 20:00 UTC?",
+        "timestamp": "20:00",
+        "baseline_timestamp": "16:00",
+        "radius_meters": 750,
+        "k": 3,
+    }
+    response = client.post("/api/heat-intelligence/brief", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert "status" in data
+    assert "brief_items" in data
+    assert len(data["brief_items"]) > 0
+    assert "plan_fingerprint" in data
+    assert len(data["mandatory_caveats"]) >= 3
