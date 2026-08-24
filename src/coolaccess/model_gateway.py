@@ -528,6 +528,18 @@ class OpenRouterChatResult:
     http_status_code: int = 200
 
 
+def _clean_json_content(raw: str) -> str:
+    """Strip optional markdown code block fences and surrounding whitespace from JSON responses."""
+    text = raw.strip()
+    if text.startswith("```json"):
+        text = text[7:]
+    elif text.startswith("```"):
+        text = text[3:]
+    if text.endswith("```"):
+        text = text[:-3]
+    return text.strip()
+
+
 class OpenRouterModelGateway:
     """Production OpenRouter adapter implementing the bounded ModelGateway protocol."""
 
@@ -570,7 +582,15 @@ class OpenRouterModelGateway:
         schema_dict: dict[str, Any],
         operation: str,
     ) -> OpenRouterChatResult:
-        payload = {
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://github.com/FortyGuard-Hackathon/CoolAccess",
+            "X-Title": "CoolAccess Temperature Intelligence",
+        }
+
+        # Step 1: Try strict json_schema payload first
+        current_payload: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
             "response_format": {
@@ -583,17 +603,12 @@ class OpenRouterModelGateway:
             },
             "stream": False,
         }
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://github.com/FortyGuard-Hackathon/CoolAccess",
-            "X-Title": "CoolAccess Temperature Intelligence",
-        }
 
         attempts = 0
         last_exc: Exception | None = None
+        schema_fallback_attempted = False
 
-        while attempts < 2:
+        while attempts < 3:
             attempts += 1
             call_timeout = self._get_turn_timeout()
             client = self._get_client()
@@ -601,11 +616,43 @@ class OpenRouterModelGateway:
             try:
                 resp = client.post(
                     OPENROUTER_API_URL,
-                    json=payload,
+                    json=current_payload,
                     headers=headers,
                     timeout=call_timeout,
                 )
                 resp_status_code = resp.status_code
+
+                # Detect 400 Bad Request on json_schema and fallback to json_object mode
+                if (
+                    resp_status_code == 400
+                    and not schema_fallback_attempted
+                    and current_payload.get("response_format", {}).get("type") == "json_schema"
+                ):
+                    logger.info(
+                        "OpenRouter provider returned 400 for model=%s on json_schema; "
+                        "retrying once using json_object mode with schema in prompt.",
+                        self.model,
+                    )
+                    schema_fallback_attempted = True
+                    schema_instruction = (
+                        "\n\nIMPORTANT: Respond with ONLY a valid raw JSON object strictly "
+                        f"conforming to this JSON schema:\n{json.dumps(schema_dict)}"
+                    )
+                    fallback_messages = list(messages)
+                    if fallback_messages:
+                        last_m = fallback_messages[-1]
+                        fallback_messages[-1] = {
+                            "role": last_m.get("role", "user"),
+                            "content": (last_m.get("content", "") + schema_instruction),
+                        }
+                    current_payload = {
+                        "model": self.model,
+                        "messages": fallback_messages,
+                        "response_format": {"type": "json_object"},
+                        "stream": False,
+                    }
+                    continue
+
                 resp.raise_for_status()
                 resp_json = resp.json()
 
@@ -624,9 +671,11 @@ class OpenRouterModelGateway:
                 message = choice_0.get("message")
                 if not isinstance(message, dict):
                     raise ValueError("OpenRouter choice[0] missing message object")
-                content = message.get("content")
-                if not isinstance(content, str) or not content.strip():
+                raw_content = message.get("content")
+                if not isinstance(raw_content, str) or not raw_content.strip():
                     raise ValueError("OpenRouter message content is missing or empty")
+
+                content = _clean_json_content(raw_content)
 
                 usage = resp_json.get("usage")
                 prompt_tokens: int | None = None
@@ -652,11 +701,43 @@ class OpenRouterModelGateway:
             except Exception as exc:
                 last_exc = exc
                 status_code = _extract_status_code(exc)
+
+                # Fallback if exception carries status_code 400 on json_schema
+                if (
+                    status_code == 400
+                    and not schema_fallback_attempted
+                    and current_payload.get("response_format", {}).get("type") == "json_schema"
+                ):
+                    logger.info(
+                        "OpenRouter 400 exception on json_schema for model=%s; "
+                        "retrying with json_object fallback.",
+                        self.model,
+                    )
+                    schema_fallback_attempted = True
+                    schema_instruction = (
+                        "\n\nIMPORTANT: Respond with ONLY a valid raw JSON object strictly "
+                        f"conforming to this JSON schema:\n{json.dumps(schema_dict)}"
+                    )
+                    fallback_messages = list(messages)
+                    if fallback_messages:
+                        last_m = fallback_messages[-1]
+                        fallback_messages[-1] = {
+                            "role": last_m.get("role", "user"),
+                            "content": (last_m.get("content", "") + schema_instruction),
+                        }
+                    current_payload = {
+                        "model": self.model,
+                        "messages": fallback_messages,
+                        "response_format": {"type": "json_object"},
+                        "stream": False,
+                    }
+                    continue
+
                 is_transient = status_code in (429, 502, 503, 504) or isinstance(
                     exc, (httpx.TimeoutException, httpx.NetworkError)
                 )
 
-                if attempts == 1 and is_transient:
+                if attempts < 2 and is_transient:
                     try:
                         remaining = self._get_turn_timeout()
                     except TimeoutError:
@@ -921,7 +1002,7 @@ class GeminiModelGateway:
                     "response_schema": TOOL_SELECTION_SCHEMA,
                 },
             )
-            raw_text = response.text or ""
+            raw_text = _clean_json_content(response.text or "")
             selection = GatewayToolSelection.model_validate_json(raw_text)
             if selection.intent_code not in context.supported_intents:
                 return None
@@ -983,7 +1064,7 @@ class GeminiModelGateway:
                     "response_schema": ANSWER_PLAN_SCHEMA,
                 },
             )
-            raw_text = response.text or ""
+            raw_text = _clean_json_content(response.text or "")
             return GatewayAnswerPlan.model_validate_json(raw_text)
         except Exception as exc:
             raise _categorize_and_log_provider_error(

@@ -1,7 +1,8 @@
-"""Unit tests for CoolAccess Model Gateway abstractions and schema validation."""
-
 from __future__ import annotations
 
+import json
+
+import httpx
 import pytest
 
 from coolaccess.agent import (
@@ -16,6 +17,8 @@ from coolaccess.agent import (
 from coolaccess.model_gateway import (
     ANSWER_PLAN_SCHEMA,
     TOOL_SELECTION_SCHEMA,
+    OpenRouterModelGateway,
+    _clean_json_content,
     get_runtime_model_gateway,
     load_ai_config,
 )
@@ -65,3 +68,130 @@ def test_fake_gateway_select_tools() -> None:
     assert sel is not None
     assert sel.intent_code == IntentCode.REPLACEMENT_RATIONALE
     assert len(sel.tool_calls) > 0
+
+
+def test_clean_json_content() -> None:
+    # Plain JSON string
+    assert _clean_json_content('{"key": "value"}') == '{"key": "value"}'
+    # Markdown code fence with json
+    assert _clean_json_content('```json\n{"key": "value"}\n```') == '{"key": "value"}'
+    # Markdown code fence without language
+    assert _clean_json_content('```\n{"key": "value"}\n```') == '{"key": "value"}'
+    # Whitespace padding
+    assert _clean_json_content('   \n {"key": "value"} \n  ') == '{"key": "value"}'
+
+
+def test_openrouter_schema_fallback_to_json_object() -> None:
+    calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        body = json.loads(request.content.decode("utf-8"))
+        # First call uses json_schema, simulate provider rejection with 400
+        if body.get("response_format", {}).get("type") == "json_schema":
+            return httpx.Response(
+                400,
+                json={
+                    "error": {
+                        "message": "Provider does not support response_format json_schema"
+                    }
+                },
+            )
+        # Second call uses json_object mode, simulate successful markdown-wrapped response
+        elif body.get("response_format", {}).get("type") == "json_object":
+            assert (
+                "IMPORTANT: Respond with ONLY a valid raw JSON object"
+                in body["messages"][-1]["content"]
+            )
+            valid_tool_selection = {
+                "intent_code": "REPLACEMENT_RATIONALE",
+                "tool_calls": [
+                    {
+                        "tool_name": "get_replacement_evidence",
+                        "facility_id": "DC_148",
+                        "alternative_id": "DC_135",
+                        "target_timestamp": None,
+                        "baseline_type": None,
+                    }
+                ],
+            }
+            return httpx.Response(
+                200,
+                json={
+                    "choices": [
+                        {
+                            "message": {
+                                "role": "assistant",
+                                "content": (
+                                    "```json\n" + json.dumps(valid_tool_selection) + "\n```"
+                                ),
+                            },
+                            "finish_reason": "stop",
+                        }
+                    ],
+                    "usage": {"prompt_tokens": 120, "completion_tokens": 45},
+                },
+            )
+        return httpx.Response(500, json={"error": "Unexpected payload format"})
+
+    mock_client = httpx.Client(transport=httpx.MockTransport(handler))
+    gateway = OpenRouterModelGateway(
+        api_key="sk-test-key",
+        model="google/gemma-4-31b-it:free",
+        http_client=mock_client,
+    )
+    context = GatewayClassificationContext(
+        question="Why was DC_148 rejected for DC_135?",
+        current_timestamp="20:00",
+        supported_intents=tuple(IntentCode),
+        supported_tools=tuple(ToolName),
+        available_facility_ids=VALID_FACILITY_IDS,
+        available_timestamps=VALID_TIMESTAMPS,
+    )
+
+    result = gateway.select_tools(context)
+    assert result is not None
+    assert result.intent_code == IntentCode.REPLACEMENT_RATIONALE
+    assert len(result.tool_calls) == 1
+    assert result.tool_calls[0].tool_name == ToolName.GET_REPLACEMENT_EVIDENCE
+    assert result.tool_calls[0].facility_id == "DC_148"
+    assert result.tool_calls[0].alternative_id == "DC_135"
+    assert len(calls) == 2  # Proves strict attempt 1 followed by json_object attempt 2
+
+
+def test_openrouter_schema_fallback_fails_closed() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content.decode("utf-8"))
+        if body.get("response_format", {}).get("type") == "json_schema":
+            return httpx.Response(400, json={"error": {"message": "json_schema not supported"}})
+        # Even json_object returns invalid JSON
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {"role": "assistant", "content": "I am not a JSON string!"},
+                        "finish_reason": "stop",
+                    }
+                ]
+            },
+        )
+
+    mock_client = httpx.Client(transport=httpx.MockTransport(handler))
+    gateway = OpenRouterModelGateway(
+        api_key="sk-test-key",
+        model="google/gemma-4-31b-it:free",
+        http_client=mock_client,
+    )
+    context = GatewayClassificationContext(
+        question="Why was DC_148 rejected for DC_135?",
+        current_timestamp="20:00",
+        supported_intents=tuple(IntentCode),
+        supported_tools=tuple(ToolName),
+        available_facility_ids=VALID_FACILITY_IDS,
+        available_timestamps=VALID_TIMESTAMPS,
+    )
+
+    with pytest.raises(RuntimeError):
+        gateway.select_tools(context)
+
