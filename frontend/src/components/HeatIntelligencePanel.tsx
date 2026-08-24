@@ -279,7 +279,7 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
             {loading ? (
               <>
                 <span className="intel-spinner" aria-hidden="true" />
-                <span>Analyzing…</span>
+                <span>Analyzing Heat Intelligence…</span>
               </>
             ) : (
               <span>Analyze Heat</span>
@@ -287,6 +287,23 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
           </button>
         </div>
       </form>
+
+      {/* Dynamic Processing Status Banner */}
+      {loading && (
+        <div className="heat-intel-loading-status" role="status" aria-live="polite">
+          <div className="loading-pulse-ring">
+            <span className="loading-pulse-core" />
+          </div>
+          <div className="loading-text-stack">
+            <span className="loading-primary-msg">
+              Temperature AI analysis may take 10-40s. Verified deterministic fallback remains available.
+            </span>
+            <span className="loading-secondary-msg">
+              Querying FortyGuard thermal state & synthesizing evidence-grounded response…
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Error Alert */}
       {error && (

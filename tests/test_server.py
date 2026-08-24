@@ -116,7 +116,8 @@ def test_api_404_not_intercepted_by_spa() -> None:
     assert response.status_code == 404
 
 
-def test_heat_intelligence_brief_endpoint() -> None:
+def test_heat_intelligence_brief_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("COOLACCESS_AI_ENABLED", "false")
     payload = {
         "question": "What changed in thermal exposure between 16:00 and 20:00 UTC?",
         "timestamp": "20:00",

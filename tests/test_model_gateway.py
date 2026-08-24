@@ -33,7 +33,7 @@ def test_schema_validity() -> None:
 
 
 def test_load_ai_config_disabled_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("COOLACCESS_AI_ENABLED", raising=False)
+    monkeypatch.setenv("COOLACCESS_AI_ENABLED", "false")
     assert load_ai_config() is None
     assert isinstance(get_runtime_model_gateway(), DisabledModelGateway)
 
