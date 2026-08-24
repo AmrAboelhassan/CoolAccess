@@ -195,3 +195,93 @@ def test_openrouter_schema_fallback_fails_closed() -> None:
     with pytest.raises(RuntimeError):
         gateway.select_tools(context)
 
+
+def test_openrouter_rate_limit_retry_success() -> None:
+    calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        if len(calls) == 1:
+            return httpx.Response(
+                429,
+                headers={"retry-after": "0.1"},
+                json={"error": {"message": "Rate limit exceeded"}},
+            )
+        valid_tool_selection = {
+            "intent_code": "REPLACEMENT_RATIONALE",
+            "tool_calls": [
+                {
+                    "tool_name": "get_replacement_evidence",
+                    "facility_id": "DC_148",
+                    "alternative_id": "DC_135",
+                }
+            ],
+        }
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": json.dumps(valid_tool_selection),
+                        },
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 100, "completion_tokens": 30},
+            },
+        )
+
+    mock_client = httpx.Client(transport=httpx.MockTransport(handler))
+    gateway = OpenRouterModelGateway(
+        api_key="sk-test-key",
+        model="google/gemma-4-31b-it:free",
+        http_client=mock_client,
+    )
+    context = GatewayClassificationContext(
+        question="Why was DC_148 rejected for DC_135?",
+        current_timestamp="20:00",
+        supported_intents=tuple(IntentCode),
+        supported_tools=tuple(ToolName),
+        available_facility_ids=VALID_FACILITY_IDS,
+        available_timestamps=VALID_TIMESTAMPS,
+    )
+
+    result = gateway.select_tools(context)
+    assert result is not None
+    assert result.intent_code == IntentCode.REPLACEMENT_RATIONALE
+    assert len(calls) == 2
+
+
+def test_openrouter_rate_limit_exhausted() -> None:
+    calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        return httpx.Response(
+            429,
+            headers={"retry-after": "0.1"},
+            json={"error": {"message": "Rate limit exceeded"}},
+        )
+
+    mock_client = httpx.Client(transport=httpx.MockTransport(handler))
+    gateway = OpenRouterModelGateway(
+        api_key="sk-test-key",
+        model="google/gemma-4-31b-it:free",
+        http_client=mock_client,
+    )
+    context = GatewayClassificationContext(
+        question="Why was DC_148 rejected for DC_135?",
+        current_timestamp="20:00",
+        supported_intents=tuple(IntentCode),
+        supported_tools=tuple(ToolName),
+        available_facility_ids=VALID_FACILITY_IDS,
+        available_timestamps=VALID_TIMESTAMPS,
+    )
+
+    with pytest.raises(RuntimeError) as exc_info:
+        gateway.select_tools(context)
+    assert "quota exceeded" in str(exc_info.value)
+    assert len(calls) == 3
+

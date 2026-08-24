@@ -1,5 +1,5 @@
 import React from 'react';
-import { Award, TrendingUp, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Award, TrendingUp, AlertTriangle, CheckCircle, ShieldCheck } from 'lucide-react';
 import { StaticBaseline, NaiveBaseline } from '../types';
 
 interface BaselineComparisonProps {
@@ -19,13 +19,17 @@ export const BaselineComparison: React.FC<BaselineComparisonProps> = ({
   naiveBaseline,
   currentTimestamp,
 }) => {
-  const isTransitionTarget = currentTimestamp.includes('20:00');
+  const budgetK = dynamicFacilities.length;
 
   const staticGain = staticBaseline?.absolute_gain ?? 0;
   const staticGainPct = staticBaseline?.percentage_gain ?? 0;
+  const staticPop = staticBaseline?.covered_population ?? 0;
+  const staticPopDelta = dynamicPopulation - staticPop;
 
   const naiveGain = naiveBaseline?.absolute_gain ?? 0;
   const naiveGainPct = naiveBaseline?.percentage_gain ?? 0;
+
+  const hasStaticAdvantage = staticGain > 0;
 
   return (
     <div className="baseline-comparison-panel">
@@ -33,21 +37,66 @@ export const BaselineComparison: React.FC<BaselineComparisonProps> = ({
         <div className="panel-title-group">
           <Award size={18} className="text-amber" />
           <div>
-            <h3 className="section-title">Baseline Comparison Proof (Same K=3 Budget)</h3>
+            <h3 className="section-title">
+              Baseline Comparison Proof (Same K={budgetK || 3} Budget)
+            </h3>
             <p className="section-subtitle">
-              Comparing Dynamic Optimization against Static & Naive Thermal Baselines under identical inputs at {currentTimestamp}
+              Comparing Dynamic Optimization against Static & Naive Thermal Baselines under identical inputs at {currentTimestamp} UTC
             </p>
           </div>
         </div>
 
-        {isTransitionTarget && (
+        {hasStaticAdvantage ? (
           <div className="key-gain-badge">
             <TrendingUp size={16} />
-            <span>+23.81% Heat Protection Gain ($0 Budget Increase)</span>
+            <span>
+              +{staticGainPct.toFixed(2)}% Heat Protection Gain ({staticGain >= 0 ? `+${staticGain.toFixed(2)}` : staticGain.toFixed(2)} Demand Units) | $0 Budget Increase
+            </span>
+          </div>
+        ) : (
+          <div className="key-gain-badge neutral">
+            <ShieldCheck size={16} />
+            <span>Optimal Baseline Parity (k={budgetK || 3})</span>
           </div>
         )}
       </div>
 
+      {/* Dynamic Judge Summary Bar */}
+      <div className="baseline-summary-bar">
+        <div className="summary-stat-cell">
+          <span className="summary-stat-label">DYNAMIC OPTIMIZATION GAIN</span>
+          <span className="summary-stat-value text-emerald font-mono">
+            {hasStaticAdvantage ? `+${staticGainPct.toFixed(1)}%` : '0.0%'}
+          </span>
+          <span className="summary-stat-sub">
+            {hasStaticAdvantage
+              ? `+${staticGain.toFixed(2)} heat demand units protected`
+              : 'Matches initial baseline'}
+          </span>
+        </div>
+
+        <div className="summary-stat-cell">
+          <span className="summary-stat-label">ADDITIONAL PROTECTED RESIDENTS</span>
+          <span className="summary-stat-value text-sky font-mono">
+            {staticPopDelta > 0 ? `+${staticPopDelta.toLocaleString()}` : `${staticPopDelta.toLocaleString()}`}
+          </span>
+          <span className="summary-stat-sub">
+            vs {staticBaseline?.source_timestamp || 'initial'} static allocation
+          </span>
+        </div>
+
+        <div className="summary-stat-cell">
+          <span className="summary-stat-label">MUNICIPAL RESOURCE BUDGET</span>
+          <span className="summary-stat-value text-amber font-mono">
+            $0 Cost Increase
+          </span>
+          <span className="summary-stat-sub">
+            Exact same k={budgetK || 3} facilities re-allocated dynamically
+          </span>
+        </div>
+      </div>
+
+      {/* 3 Core Comparison Cards */}
       <div className="comparison-cards-grid">
         {/* Card 1: Dynamic Optimum (CoolAccess) */}
         <div className="comp-card winner">
@@ -87,7 +136,7 @@ export const BaselineComparison: React.FC<BaselineComparisonProps> = ({
         {/* Card 2: Static Baseline (Midday Plan) */}
         <div className="comp-card">
           <div className="comp-badge neutral">
-            <span>Static Baseline (Reusing 16:00 Set)</span>
+            <span>Static Baseline ({staticBaseline?.source_timestamp || '16:00'} Set)</span>
           </div>
 
           <div className="comp-facility-tags">
@@ -119,8 +168,8 @@ export const BaselineComparison: React.FC<BaselineComparisonProps> = ({
 
           <p className="comp-summary-text">
             {staticGain > 0
-              ? 'Keeps midday allocation active into late afternoon, failing to protect neighborhoods where commercial thermal retention peaks late.'
-              : 'Identical to midday baseline at 16:00 UTC.'}
+              ? `Keeps ${staticBaseline?.source_timestamp || 'earlier'} allocation active into current horizon, failing to shift resources where late-day thermal inertia peaks.`
+              : 'Identical to baseline configuration at this time horizon.'}
           </p>
         </div>
 
@@ -166,3 +215,4 @@ export const BaselineComparison: React.FC<BaselineComparisonProps> = ({
     </div>
   );
 };
+

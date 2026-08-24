@@ -630,7 +630,7 @@ class OpenRouterModelGateway:
                 ):
                     logger.info(
                         "OpenRouter provider returned 400 for model=%s on json_schema; "
-                        "retrying once using json_object mode with schema in prompt.",
+                        "retrying immediately using json_object mode with schema in prompt.",
                         self.model,
                     )
                     schema_fallback_attempted = True
@@ -651,6 +651,8 @@ class OpenRouterModelGateway:
                         "response_format": {"type": "json_object"},
                         "stream": False,
                     }
+                    # Do not consume retry count for format fallback
+                    attempts -= 1
                     continue
 
                 resp.raise_for_status()
@@ -710,7 +712,7 @@ class OpenRouterModelGateway:
                 ):
                     logger.info(
                         "OpenRouter 400 exception on json_schema for model=%s; "
-                        "retrying with json_object fallback.",
+                        "retrying immediately with json_object fallback.",
                         self.model,
                     )
                     schema_fallback_attempted = True
@@ -731,19 +733,34 @@ class OpenRouterModelGateway:
                         "response_format": {"type": "json_object"},
                         "stream": False,
                     }
+                    attempts -= 1
                     continue
 
                 is_transient = status_code in (429, 502, 503, 504) or isinstance(
                     exc, (httpx.TimeoutException, httpx.NetworkError)
                 )
 
-                if attempts < 2 and is_transient:
+                if attempts < 3 and is_transient:
                     try:
                         remaining = self._get_turn_timeout()
                     except TimeoutError:
                         break
-                    if remaining > 1.0:
-                        time.sleep(min(OPENROUTER_RETRY_BACKOFF_SECONDS, remaining - 0.5))
+
+                    # Parse bounded backoff, respecting Retry-After header if present
+                    backoff = min(OPENROUTER_RETRY_BACKOFF_SECONDS * (1.5 ** (attempts - 1)), 1.5)
+                    resp_obj = getattr(exc, "response", None)
+                    if resp_obj is not None:
+                        retry_hdr = resp_obj.headers.get("retry-after")
+                        if retry_hdr:
+                            try:
+                                parsed_hdr = float(retry_hdr)
+                                if 0.1 <= parsed_hdr <= 2.0:
+                                    backoff = parsed_hdr
+                            except (ValueError, TypeError):
+                                pass
+
+                    if remaining > backoff + 0.5:
+                        time.sleep(backoff)
                         continue
 
                 break

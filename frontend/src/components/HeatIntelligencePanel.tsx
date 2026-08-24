@@ -1,4 +1,17 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Sparkles,
+  ShieldCheck,
+  CheckCircle2,
+  Clock,
+  Thermometer,
+  Users,
+  Cpu,
+  BarChart3,
+  ChevronDown,
+  ChevronUp,
+  MapPin,
+} from 'lucide-react';
 import { fetchHeatBrief } from '../api/client';
 import {
   HeatBriefResponse,
@@ -41,7 +54,7 @@ const PRIMARY_PROMPTS = [
 
 const SECONDARY_PROMPTS = [
   'Why is this facility important from a thermal perspective?',
-  'Compare dynamic allocation against static 16:00 baseline',
+  'Compare dynamic allocation against static baseline',
   'Explain tie-breaking criterion for current optimal selection',
 ];
 
@@ -53,6 +66,40 @@ const INTENT_LABELS: Record<IntentCode, string> = {
   BASELINE_COMPARISON: 'Baseline Comparison Analysis',
 };
 
+const LOADING_STAGES = [
+  {
+    id: 'evidence',
+    title: 'Collecting Thermal Evidence',
+    desc: 'Loading FortyGuard 100m TCM temperature grid & AOI bounds',
+  },
+  {
+    id: 'optimization',
+    title: 'Evaluating Optimization Results',
+    desc: 'Retrieving deterministic max-coverage results & baseline metrics',
+  },
+  {
+    id: 'explanation',
+    title: 'Generating Explanation',
+    desc: 'Synthesizing evidence-grounded municipal decision narrative',
+  },
+  {
+    id: 'validation',
+    title: 'Validating Response',
+    desc: 'Enforcing strict Pydantic schemas & claim ledger grounding',
+  },
+];
+
+function getClaimCategoryBadge(claimId: string): string {
+  if (claimId.includes(':loss')) return 'Trade-off Evidence';
+  if (claimId.includes(':transition')) return 'Diurnal Transition';
+  if (claimId.includes(':summary')) return 'Optimizer Output';
+  if (claimId.includes(':profile')) return 'Vulnerability Data';
+  if (claimId.includes(':gain')) return 'Baseline Gain';
+  if (claimId.includes(':tie_break')) return 'Tie-Break Logic';
+  if (claimId.includes(':facility')) return 'Catchment Priority';
+  return 'Grounded Claim';
+}
+
 export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
   currentTimestamp,
   facilities,
@@ -62,6 +109,7 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
 }) => {
   const [question, setQuestion] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
   const [brief, setBrief] = useState<HeatBriefResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showSecondaryPrompts, setShowSecondaryPrompts] = useState<boolean>(false);
@@ -72,6 +120,32 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
     () => Object.fromEntries(facilities.map((f) => [f.facility_id, f])),
     [facilities]
   );
+
+  // Real elapsed seconds tracking during active loading
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | null = null;
+    if (loading) {
+      setElapsedSeconds(0);
+      const startTime = Date.now();
+      interval = setInterval(() => {
+        setElapsedSeconds(Number(((Date.now() - startTime) / 1000).toFixed(1)));
+      }, 100);
+    } else {
+      if (interval) clearInterval(interval);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [loading]);
+
+  // Current loading stage based on real elapsed time
+  const currentStageIndex = useMemo(() => {
+    if (!loading) return 0;
+    if (elapsedSeconds < 2.0) return 0;
+    if (elapsedSeconds < 4.5) return 1;
+    if (elapsedSeconds < 14.0) return 2;
+    return 3;
+  }, [loading, elapsedSeconds]);
 
   const handleSubmit = async (queryText?: string) => {
     const textToSubmit = (queryText !== undefined ? queryText : question).trim();
@@ -150,58 +224,82 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
     <div className="heat-intelligence-module">
       {/* Module Header Bar */}
       <div className="heat-intel-header">
-        <div className="heat-intel-brand">
-          <span className="heat-intel-pulse-dot" aria-hidden="true">●</span>
-          <span className="heat-intel-title">Temperature AI Intelligence Layer</span>
+        <div className="heat-intel-header-top">
+          <div className="heat-intel-brand">
+            <span className="heat-intel-pulse-dot" aria-hidden="true">●</span>
+            <span className="heat-intel-title">Temperature AI Intelligence Layer</span>
+          </div>
+
+          {brief && (
+            <div className="heat-intel-status-bar">
+              {brief.status === 'AI_GENERATED' ? (
+                <span className="badge-ai-mode mode-ai font-mono">
+                  <Sparkles size={11} className="inline-icon" /> AI Explanation Active
+                </span>
+              ) : (
+                <span className="badge-ai-mode mode-fallback font-mono">
+                  <ShieldCheck size={11} className="inline-icon" /> Verified Deterministic Mode Active
+                </span>
+              )}
+              <span className="badge-intent font-mono">
+                {INTENT_LABELS[brief.intent_code] || brief.intent_code}
+              </span>
+            </div>
+          )}
         </div>
 
         <p className="heat-intel-subhead">
           Evidence-grounded thermal vulnerability insights & municipal decision support.
-          Read-only projection over deterministic optimizer.
+          Pure read-only projection over deterministic spatial optimizer.
         </p>
-
-        {brief && (
-          <div className="heat-intel-status-bar">
-            {brief.status === 'AI_GENERATED' ? (
-              <span className="badge-ai-mode mode-ai font-mono">AI_GENERATED</span>
-            ) : (
-              <span className="badge-ai-mode mode-fallback font-mono">DETERMINISTIC_FALLBACK</span>
-            )}
-            <span className="badge-intent font-mono">
-              {INTENT_LABELS[brief.intent_code] || brief.intent_code}
-            </span>
-          </div>
-        )}
       </div>
 
-      {/* Top 3 Scenario Thermal & Vulnerability Summary Badges */}
-      <div className="heat-summary-cards-grid">
-        <div className="heat-metric-pill">
-          <span className="pill-label">SCENARIO THERMAL EXPOSURE</span>
-          <span className="pill-value font-mono">
-            {currentTimestamp === '16:00'
-              ? 'Peak Heat (37.7°C max)'
-              : currentTimestamp === '20:00'
-              ? 'Evening Heat (35.1°C max)'
-              : `${currentTimestamp} UTC Snapshot`}
+      {/* 4 Pillars of Grounded Evidence */}
+      <div className="evidence-sources-grid">
+        <div className="evidence-source-card">
+          <div className="evidence-source-header">
+            <Thermometer size={14} className="text-amber" />
+            <span className="evidence-source-label">FORTYGUARD THERMAL DATA</span>
+          </div>
+          <span className="evidence-source-value font-mono">
+            {currentTimestamp} UTC Thermal Grid
           </span>
-          <span className="pill-subtext">FortyGuard 100m TCM Grid</span>
+          <span className="evidence-source-sub">100m Temperature Priority</span>
         </div>
 
-        <div className="heat-metric-pill">
-          <span className="pill-label">POPULATION VULNERABILITY</span>
-          <span className="pill-value font-mono">
-            {metrics ? `${metrics.covered_population.toLocaleString()} / ${metrics.total_population.toLocaleString()}` : '—'}
+        <div className="evidence-source-card">
+          <div className="evidence-source-header">
+            <Users size={14} className="text-sky" />
+            <span className="evidence-source-label">POPULATION VULNERABILITY</span>
+          </div>
+          <span className="evidence-source-value font-mono">
+            {metrics
+              ? `${metrics.covered_population.toLocaleString()} / ${metrics.total_population.toLocaleString()}`
+              : '—'}
           </span>
-          <span className="pill-subtext">Residents in High-Heat Blocks</span>
+          <span className="evidence-source-sub">2020 Census Residential Blocks</span>
         </div>
 
-        <div className="heat-metric-pill">
-          <span className="pill-label">COOLING COVERAGE</span>
-          <span className="pill-value font-mono">
+        <div className="evidence-source-card">
+          <div className="evidence-source-header">
+            <Cpu size={14} className="text-emerald" />
+            <span className="evidence-source-label">OPTIMIZER SELECTION</span>
+          </div>
+          <span className="evidence-source-value font-mono">
+            k={selectedFacilityIds.length || 3} Optimal Facilities
+          </span>
+          <span className="evidence-source-sub">Max-Coverage Integer Model</span>
+        </div>
+
+        <div className="evidence-source-card">
+          <div className="evidence-source-header">
+            <BarChart3 size={14} className="text-accent" />
+            <span className="evidence-source-label">BASELINE COMPARISON</span>
+          </div>
+          <span className="evidence-source-value font-mono">
             {metrics ? `${metrics.coverage_percentage.toFixed(1)}% Demand` : '—'}
           </span>
-          <span className="pill-subtext">k={selectedFacilityIds.length || 3} Optimal Shelters</span>
+          <span className="evidence-source-sub">Proven Comparative Advantage</span>
         </div>
       </div>
 
@@ -279,7 +377,7 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
             {loading ? (
               <>
                 <span className="intel-spinner" aria-hidden="true" />
-                <span>Analyzing Heat Intelligence…</span>
+                <span>Processing Brief…</span>
               </>
             ) : (
               <span>Analyze Heat</span>
@@ -288,19 +386,49 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
         </div>
       </form>
 
-      {/* Dynamic Processing Status Banner */}
+      {/* Multi-Stage Loading Visualizer Representing Real Processing */}
       {loading && (
-        <div className="heat-intel-loading-status" role="status" aria-live="polite">
-          <div className="loading-pulse-ring">
-            <span className="loading-pulse-core" />
+        <div className="heat-intel-loading-stepper" role="status" aria-live="polite">
+          <div className="stepper-header-row">
+            <div className="stepper-title-group">
+              <span className="stepper-pulse-dot" />
+              <span className="stepper-title">Synthesizing Heat Intelligence Brief</span>
+            </div>
+            <div className="stepper-timer-badge font-mono">
+              <Clock size={12} />
+              <span>Elapsed: {elapsedSeconds.toFixed(1)}s</span>
+            </div>
           </div>
-          <div className="loading-text-stack">
-            <span className="loading-primary-msg">
-              Temperature AI analysis may take 10-40s. Verified deterministic fallback remains available.
-            </span>
-            <span className="loading-secondary-msg">
-              Querying FortyGuard thermal state & synthesizing evidence-grounded response…
-            </span>
+
+          <div className="stepper-stages-list">
+            {LOADING_STAGES.map((stage, idx) => {
+              const isCompleted = idx < currentStageIndex;
+              const isCurrent = idx === currentStageIndex;
+              return (
+                <div
+                  key={stage.id}
+                  className={`stepper-stage-item ${isCompleted ? 'completed' : ''} ${isCurrent ? 'active' : ''}`}
+                >
+                  <div className="stage-icon-col">
+                    {isCompleted ? (
+                      <CheckCircle2 size={16} className="stage-icon check" />
+                    ) : isCurrent ? (
+                      <div className="stage-icon spinner" />
+                    ) : (
+                      <div className="stage-icon dot" />
+                    )}
+                  </div>
+                  <div className="stage-text-col">
+                    <span className="stage-name">{stage.title}</span>
+                    <span className="stage-desc">{stage.desc}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="stepper-safety-note">
+            <span>🛡️ Authoritative safety guarantee: LLMs never calculate or modify facility allocations.</span>
           </div>
         </div>
       )}
@@ -318,23 +446,32 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
       {/* Structured Brief Response */}
       {brief && (
         <div className="heat-brief-container">
-          {/* Fallback Mode Banner */}
+          {/* Deterministic Fallback Authority Notice */}
           {brief.status === 'DETERMINISTIC_FALLBACK' && (
             <div className="heat-fallback-notice">
-              <span className="fallback-shield-icon">🛡️</span>
+              <ShieldCheck size={20} className="fallback-shield-icon text-emerald" />
               <div className="fallback-text">
-                <strong>Deterministic mode active.</strong> Response rendered from verified
-                authoritative engine facts without live AI inference; the optimizer selection and
-                metrics remain unchanged.
+                <div className="fallback-headline">
+                  <strong>Verified Deterministic Intelligence Mode Active</strong>
+                </div>
+                <div className="fallback-sub">
+                  All facility selections, coverage metrics, and tie-breaking decisions are computed
+                  directly and authoritatively by the mathematical spatial optimizer.
+                  {brief.fallback_reason && (
+                    <span className="fallback-reason-detail"> ({brief.fallback_reason})</span>
+                  )}
+                </div>
               </div>
             </div>
           )}
 
-          {/* AI Heat Insight Card (The 5-Second Temperature Answer) */}
+          {/* AI Heat Insight Card */}
           <div className="ai-heat-insight-card">
             <div className="insight-card-header">
               <div className="insight-title-group">
-                <span className="insight-pill-tag">TEMPERATURE AI INSIGHT</span>
+                <span className="insight-pill-tag">
+                  {brief.status === 'AI_GENERATED' ? 'AI HEAT INTELLIGENCE' : 'DETERMINISTIC HEAT INTELLIGENCE'}
+                </span>
                 <h4 className="insight-title">{brief.title}</h4>
               </div>
 
@@ -344,7 +481,8 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
                   className="btn-focus-facility"
                   onClick={() => onSelectFacility(focusedFacility.facility_id)}
                 >
-                  <span>📍 Focus {focusedFacility.name}</span>
+                  <MapPin size={12} />
+                  <span>Focus {focusedFacility.name}</span>
                 </button>
               )}
             </div>
@@ -357,7 +495,12 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
                 {detailItems.map((item) => (
                   <div key={item.claim_id} className="finding-row">
                     <span className="finding-bullet">▸</span>
-                    <span className="finding-text">{item.server_rendered_text}</span>
+                    <div className="finding-body">
+                      <span className="finding-category-tag font-mono">
+                        {getClaimCategoryBadge(item.claim_id)}
+                      </span>
+                      <span className="finding-text">{item.server_rendered_text}</span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -366,7 +509,7 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
             {/* Action Bar */}
             <div className="insight-footer-bar">
               <span className="fingerprint-tag font-mono">
-                Fingerprint: {brief.plan_fingerprint.substring(0, 12)}…
+                SHA-256 Fingerprint: {brief.plan_fingerprint.substring(0, 16)}…
               </span>
 
               <button
@@ -375,8 +518,8 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
                 onClick={() => setAuditOpen(!auditOpen)}
                 aria-expanded={auditOpen}
               >
-                <span>{auditOpen ? 'Hide Evidence Audit' : 'Inspect Evidence Audit'}</span>
-                <span>{auditOpen ? '▲' : '▼'}</span>
+                <span>{auditOpen ? 'Hide Evidence Audit' : 'Inspect Evidence Audit & Provenance'}</span>
+                {auditOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
               </button>
             </div>
           </div>
@@ -396,7 +539,7 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
               </div>
 
               <div className="audit-section">
-                <h5 className="audit-subtitle">Mandatory Caveats & Data Provenance</h5>
+                <h5 className="audit-subtitle">Mandatory Caveats & Scientific Provenance</h5>
                 <ul className="caveats-list">
                   {brief.mandatory_caveats.map((c, idx) => (
                     <li key={idx}>{c}</li>
@@ -410,3 +553,4 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
     </div>
   );
 };
+

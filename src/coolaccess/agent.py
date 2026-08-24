@@ -1195,6 +1195,14 @@ def get_mandatory_caveats(analysis: AllocationAnalysisResult) -> list[str]:
 # -----------------------------------------------------------------------------
 
 
+def _extract_safe_fallback_reason(exc: Exception, default_reason: str) -> str:
+    msg = str(exc)
+    if msg.startswith("AI provider unavailable (") and msg.endswith(")"):
+        inner = msg[len("AI provider unavailable (") : -1]
+        return f"{inner}; returning an authoritative deterministic heat intelligence summary."
+    return default_reason
+
+
 def _build_deterministic_fallback_response(
     analysis: AllocationAnalysisResult,
     scenario: ScenarioBundle,
@@ -1278,7 +1286,6 @@ def generate_heat_brief(
                 "No AI model gateway configured; returning authoritative deterministic summary."
             ),
         )
-
     # Step 3: Gateway tool selection
     classification_context = GatewayClassificationContext(
         question=request.question,
@@ -1291,13 +1298,15 @@ def generate_heat_brief(
 
     try:
         tool_selection = gateway.select_tools(classification_context)
-    except Exception:
+    except Exception as exc:
         logger.warning("Gateway tool selection failed: category=gateway_exception")
         return _build_deterministic_fallback_response(
             analysis=analysis_result,
             scenario=scenario_bundle,
             question=request.question,
-            fallback_reason=FALLBACK_REASON_GATEWAY_SELECTION_FAILED,
+            fallback_reason=_extract_safe_fallback_reason(
+                exc, FALLBACK_REASON_GATEWAY_SELECTION_FAILED
+            ),
         )
 
     if tool_selection is None:
@@ -1381,14 +1390,16 @@ def generate_heat_brief(
 
     try:
         answer_plan = gateway.generate_answer_plan(plan_context, tool_results)
-    except Exception:
+    except Exception as exc:
         logger.warning("Gateway answer plan generation failed: category=gateway_exception")
         return _build_deterministic_fallback_response(
             analysis=analysis_result,
             scenario=scenario_bundle,
             question=request.question,
             intent_code=tool_selection.intent_code,
-            fallback_reason=FALLBACK_REASON_GATEWAY_ANSWER_FAILED,
+            fallback_reason=_extract_safe_fallback_reason(
+                exc, FALLBACK_REASON_GATEWAY_ANSWER_FAILED
+            ),
             tools_used=tools_used_strings,
         )
 
