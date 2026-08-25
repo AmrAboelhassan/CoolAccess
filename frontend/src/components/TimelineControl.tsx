@@ -11,32 +11,32 @@ const TIMESTAMP_METADATA: Record<string, { label: string; edt: string; phase: st
   '14:00': {
     label: '14:00 UTC',
     edt: '10:00 AM EDT',
-    phase: 'Morning Warmup',
-    desc: 'Solar irradiance rises; residential and commercial thermal profiles begin diverging.',
+    phase: '10 AM Local',
+    desc: 'Prepared FortyGuard temperature snapshot for 14:00 UTC.',
   },
   '16:00': {
-    label: '16:00 UTC (Midday Peak)',
+    label: '16:00 UTC (Reference)',
     edt: '12:00 PM EDT',
-    phase: 'NOW State',
-    desc: 'Peak midday radiation. High uniform heat across AOI favors dense residential population.',
+    phase: 'Reference State',
+    desc: 'Static-baseline reference allocation: DC_089, DC_148, and DC_166.',
   },
   '18:00': {
     label: '18:00 UTC',
     edt: '02:00 PM EDT',
-    phase: 'Early Afternoon',
-    desc: 'Peak ambient air heat; localized urban geometry begins accumulating thermal lag.',
+    phase: '2 PM Local',
+    desc: 'Prepared FortyGuard temperature snapshot; the selected facility set remains unchanged.',
   },
   '20:00': {
     label: '20:00 UTC (Late Afternoon)',
     edt: '04:00 PM EDT',
-    phase: 'Target Future Shift',
-    desc: 'Differential cooling: residential tree canopies cool fast while downtown masonry retains heat.',
+    phase: 'Allocation Change',
+    desc: 'The deterministic optimum removes DC_148 and adds DC_135 at this historical timestamp.',
   },
   '22:00': {
     label: '22:00 UTC',
     edt: '06:00 PM EDT',
-    phase: 'Evening Residual',
-    desc: 'Evening heat release from asphalt canyons sustains downtown cooling demand.',
+    phase: '6 PM Local',
+    desc: 'Prepared FortyGuard temperature snapshot; the 20:00 selected facility set is retained.',
   },
 };
 
@@ -69,10 +69,11 @@ export const TimelineControl: React.FC<TimelineControlProps> = ({
           <button
             type="button"
             className={`demo-btn ${isNowState ? 'active' : ''}`}
+            aria-pressed={isNowState}
             onClick={() => onSelectTimestamp('16:00')}
           >
             <Sun size={14} />
-            <span>1. Midday (16:00 UTC)</span>
+            <span>1. Reference (16:00 UTC)</span>
           </button>
           <div className="shortcut-arrow">
             <ArrowRight size={14} />
@@ -80,10 +81,11 @@ export const TimelineControl: React.FC<TimelineControlProps> = ({
           <button
             type="button"
             className={`demo-btn highlight ${isTransitionTarget ? 'active' : ''}`}
+            aria-pressed={isTransitionTarget}
             onClick={() => onSelectTimestamp('20:00')}
           >
             <Sunset size={14} />
-            <span>2. Late Afternoon Shift (20:00 UTC)</span>
+            <span>2. Allocation Change (20:00 UTC)</span>
           </button>
         </div>
       </div>
@@ -107,6 +109,8 @@ export const TimelineControl: React.FC<TimelineControlProps> = ({
               className={`timeline-step-btn ${isSelected ? 'selected' : ''} ${
                 isSpecial ? 'key-state' : ''
               }`}
+              aria-pressed={isSelected}
+              aria-label={`${info.phase}, ${ts} UTC, ${info.edt}`}
               onClick={() => onSelectTimestamp(ts)}
             >
               <div className="step-badge">{info.phase}</div>

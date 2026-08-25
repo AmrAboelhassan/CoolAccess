@@ -1,5 +1,12 @@
 # Technical Architecture
 
+> **Planning-document notice:** Sections labeled “proposed” preserve pre-build design work.
+> The current runtime is a React/Leaflet frontend served with FastAPI, a packaged historical
+> scenario, deterministic demand/coverage/optimizer/baseline/replacement modules, a deterministic
+> evidence planner and claim ledger, and an optional OpenRouter query-routing/claim-organization
+> layer. It performs no live or forecast FortyGuard request at runtime and uses no database,
+> queue, or provider SDK.
+
 ## 1. Architecture goals
 
 In priority order:
@@ -254,4 +261,3 @@ Prepared-demo data is allowed only after organizer/provider permission. It must 
 - P0 works without facility hours, network routing, an LLM, database, or queue.
 - Every recommendation traces to temperature, population, facility, proximity, formula, timestamp, and provenance.
 - Failure paths never generate facts.
-

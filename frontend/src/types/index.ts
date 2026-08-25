@@ -105,6 +105,7 @@ export interface ReplacementSummaryItem {
 export interface AllocationResponse {
   timestamp: string;
   baseline_timestamp: string;
+  radius_meters: number;
   k: number;
   resource_count: number;
   selected_facility_ids: string[];
@@ -164,6 +165,8 @@ export interface ReplacementMatrixItem {
 
 export interface ReplacementResponse {
   timestamp: string;
+  radius_meters: number;
+  k: number;
   optimal_selected_facilities: string[];
   primary_replacement: PrimaryReplacement;
   replacement_matrix: ReplacementMatrixItem[];
@@ -213,6 +216,9 @@ export interface HeatBriefResponse {
   intent_code?: IntentCode | null;
   scenario_id: string;
   plan_fingerprint: string;
+  timestamp: string;
+  radius_meters: number;
+  k: number;
   title: string;
   brief_items: BriefItem[];
   tools_used: string[];

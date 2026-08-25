@@ -21,7 +21,13 @@ from coolaccess.contracts import CompleteBaselineResult
 from coolaccess.model_gateway import get_runtime_model_gateway
 from coolaccess.optimizer import optimize
 from coolaccess.replacement import build_replacement_evidence
-from coolaccess.scenario import ScenarioBundle, format_timestamp_display, load_locked_scenario
+from coolaccess.scenario import (
+    MAX_RADIUS_METERS,
+    MIN_RADIUS_METERS,
+    ScenarioBundle,
+    format_timestamp_display,
+    load_locked_scenario,
+)
 
 
 def get_frontend_dist_dir() -> Path:
@@ -136,8 +142,13 @@ def create_app(scenario_bundle: ScenarioBundle | None = None) -> FastAPI:
         baseline_timestamp: str = Query(
             "16:00", description="Source timestamp for static baseline selection (e.g. '16:00')"
         ),
-        radius_meters: int = Query(750, description="Catchment proximity radius in meters"),
-        k: int = Query(3, description="Resource facility budget limit"),
+        radius_meters: int = Query(
+            750,
+            ge=MIN_RADIUS_METERS,
+            le=MAX_RADIUS_METERS,
+            description="Catchment proximity radius in meters",
+        ),
+        k: int = Query(3, ge=1, le=6, description="Facility-count budget limit"),
     ) -> dict[str, Any]:
         """Compute optimal allocation, baseline comparisons, and metrics for a timestamp."""
         try:
@@ -147,8 +158,11 @@ def create_app(scenario_bundle: ScenarioBundle | None = None) -> FastAPI:
             baseline_req = bundle.build_allocation_request(
                 timestamp=baseline_timestamp, radius_meters=radius_meters, k=k
             )
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid allocation timestamp, radius, or facility-count budget.",
+            ) from None
 
         # Prior allocation for static baseline
         prior_res = optimize(baseline_req)
@@ -233,6 +247,7 @@ def create_app(scenario_bundle: ScenarioBundle | None = None) -> FastAPI:
         return {
             "timestamp": format_timestamp_display(timestamp),
             "baseline_timestamp": format_timestamp_display(baseline_timestamp),
+            "radius_meters": radius_meters,
             "k": opt.k,
             "resource_count": opt.resource_count,
             "selected_facility_ids": list(opt.selected_facility_ids),
@@ -284,16 +299,29 @@ def create_app(scenario_bundle: ScenarioBundle | None = None) -> FastAPI:
         unselected_id: str | None = Query(
             None, description="Unselected alternative facility ID (defaults to DC_148 at 20:00)"
         ),
-        radius_meters: int = Query(750, description="Catchment proximity radius in meters"),
-        k: int = Query(3, description="Resource facility budget limit"),
+        radius_meters: int = Query(
+            750,
+            ge=MIN_RADIUS_METERS,
+            le=MAX_RADIUS_METERS,
+            description="Catchment proximity radius in meters",
+        ),
+        k: int = Query(
+            3,
+            ge=1,
+            le=5,
+            description="Facility-count budget (must leave at least one alternative)",
+        ),
     ) -> dict[str, Any]:
         """Return one-for-one facility replacement evidence and loss analysis."""
         try:
             target_req = bundle.build_allocation_request(
                 timestamp=timestamp, radius_meters=radius_meters, k=k
             )
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid replacement timestamp, radius, or facility-count budget.",
+            ) from None
 
         opt = optimize(target_req)
         selected_ids = opt.selected_facility_ids
@@ -312,12 +340,12 @@ def create_app(scenario_bundle: ScenarioBundle | None = None) -> FastAPI:
         if target_sel not in selected_ids:
             raise HTTPException(
                 status_code=400,
-                detail=f"Facility '{target_sel}' is not selected in {selected_ids}",
+                detail="selected_id must identify a facility selected at this timestamp.",
             )
         if target_unsel not in eligible_unselected:
             raise HTTPException(
                 status_code=400,
-                detail=f"Facility '{target_unsel}' is not unselected in {eligible_unselected}",
+                detail="unselected_id must identify an eligible unselected facility.",
             )
 
         evidence = build_replacement_evidence(target_req, opt, target_sel, target_unsel)
@@ -331,16 +359,29 @@ def create_app(scenario_bundle: ScenarioBundle | None = None) -> FastAPI:
             {},
         )
 
-        # Build human-readable physical explanation
+        # Build a human-readable explanation from deterministic replacement evidence only.
         ts_fmt = format_timestamp_display(timestamp)
         loss_val = float(evidence.primary_objective_loss)
         pop_d = int(evidence.population_delta)
+        if pop_d > 0:
+            population_text = (
+                f"The alternative's catchment includes {pop_d:,} more residents, but the "
+                "substituted facility set covers less heat-weighted demand."
+            )
+        elif pop_d < 0:
+            population_text = (
+                f"The alternative's catchment includes {abs(pop_d):,} fewer residents and the "
+                "substituted facility set covers less heat-weighted demand."
+            )
+        else:
+            population_text = (
+                "The resident coverage is unchanged, while the substituted facility set covers "
+                "less heat-weighted demand."
+            )
         explanation = (
-            f"At {ts_fmt} UTC, replacing '{sel_info.get('name', target_sel)}' "
-            f"with '{unsel_info.get('name', target_unsel)}' results in a primary objective loss of "
-            f"{loss_val:.2f} heat-weighted demand units. While the alternative covers "
-            f"{pop_d:+d} raw residents, the optimal facility operates in an urban corridor "
-            f"with substantially higher late-afternoon thermal priority."
+            f"At {ts_fmt} UTC, replacing '{sel_info.get('name', target_sel)}' with "
+            f"'{unsel_info.get('name', target_unsel)}' lowers the deterministic objective by "
+            f"{loss_val:.2f} heat-weighted demand units. {population_text}"
         )
 
         # Build full matrix of all 9 possible replacements for convenience
@@ -361,6 +402,8 @@ def create_app(scenario_bundle: ScenarioBundle | None = None) -> FastAPI:
 
         return {
             "timestamp": format_timestamp_display(timestamp),
+            "radius_meters": radius_meters,
+            "k": k,
             "optimal_selected_facilities": list(selected_ids),
             "primary_replacement": {
                 "selected_facility": {
@@ -410,8 +453,11 @@ def create_app(scenario_bundle: ScenarioBundle | None = None) -> FastAPI:
         """Return map-ready GeoJSON FeatureCollection(s)."""
         try:
             return bundle.get_geojson(layer=layer, timestamp=timestamp)
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="Unsupported GeoJSON layer or prepared benchmark timestamp.",
+            ) from None
 
     @app.post("/api/heat-intelligence/brief", response_model=HeatBriefResponse)
     def heat_intelligence_brief(
@@ -429,8 +475,11 @@ def create_app(scenario_bundle: ScenarioBundle | None = None) -> FastAPI:
                 radius_meters=request.radius_meters,
                 k=request.k,
             )
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid heat-intelligence timestamp, radius, or facility-count budget.",
+            ) from None
 
         prior_res = optimize(baseline_req)
         analysis = analyze_future_state(target_req, prior_res)

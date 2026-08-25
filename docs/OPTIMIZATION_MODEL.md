@@ -1,5 +1,8 @@
 # Optimization Model
 
+> **Terminology note:** Legacy “NOW” and “future” labels below denote reference and later
+> prepared historical timestamps. The packaged benchmark is not live weather or a forecast.
+
 ## 1. Purpose and boundary
 
 CoolAccess uses deterministic maximum coverage to select existing eligible facilities under a fixed resource limit. The model is a transparent planning prototype. It is not a medical heat-risk model, emergency order, operating-hours system, or prediction of cooling effectiveness.

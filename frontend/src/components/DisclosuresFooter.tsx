@@ -17,7 +17,7 @@ export const DisclosuresFooter: React.FC<DisclosuresFooterProps> = ({ scenario }
           </div>
           <ul className="footer-list">
             <li>
-              <strong>Thermal Evidence:</strong> FortyGuard 2-meter Street-Level Thermal API (TCM Model, 100m grid resolution).
+              <strong>Thermal Evidence:</strong> Prepared historical FortyGuard 2-meter ambient-temperature data (TCM, 100m grid preparation).
             </li>
             <li>
               <strong>Residential Population:</strong> U.S. Census Bureau 2020 Decennial Census (P.L. 94-171, Table P1).
@@ -58,11 +58,11 @@ export const DisclosuresFooter: React.FC<DisclosuresFooterProps> = ({ scenario }
             </div>
             <div className="audit-item">
               <span className="audit-label">Core Solver:</span>
-              <span className="audit-val">Deterministic Exhaustive Power-Set (N=6, K=3)</span>
+              <span className="audit-val">Deterministic exhaustive combination evaluation (N=6, K=3)</span>
             </div>
             <div className="audit-item">
-              <span className="audit-label">Test Suite:</span>
-              <span className="audit-val text-emerald">200 Core Tests Passed (100%)</span>
+              <span className="audit-label">Verification:</span>
+              <span className="audit-val text-emerald">See repository test and release results</span>
             </div>
           </div>
         </div>

@@ -29,39 +29,10 @@ interface HeatIntelligencePanelProps {
   onSelectFacility?: (facilityId: string) => void;
 }
 
-const PRIMARY_PROMPTS = [
-  {
-    text: 'What changed in thermal exposure between 16:00 and 20:00 UTC?',
-    icon: '🌡️',
-    label: 'Diurnal Thermal Shift',
-  },
-  {
-    text: 'Which areas combine high heat exposure and population density?',
-    icon: '📍',
-    label: 'Vulnerability Hotspots',
-  },
-  {
-    text: 'Why was DC_148 rejected in favor of DC_135?',
-    icon: '⚖️',
-    label: 'Facility Trade-off Rationale',
-  },
-  {
-    text: 'Summarize the heat vulnerability of this scenario.',
-    icon: '📋',
-    label: 'Evidence-Based Heat Brief',
-  },
-];
-
-const SECONDARY_PROMPTS = [
-  'Why is this facility important from a thermal perspective?',
-  'Compare dynamic allocation against static baseline',
-  'Explain tie-breaking criterion for current optimal selection',
-];
-
 const INTENT_LABELS: Record<IntentCode, string> = {
   ALLOCATION_SUMMARY: 'Optimal Cooling Deployment',
   DIURNAL_HEAT_TRANSITION: 'Diurnal Heat Transition',
-  HEAT_VULNERABILITY_EXPLANATION: 'Heat Vulnerability Explanation',
+  HEAT_VULNERABILITY_EXPLANATION: 'Facility Thermal & Population Evidence',
   REPLACEMENT_RATIONALE: 'Facility Trade-off Rationale',
   BASELINE_COMPARISON: 'Baseline Comparison Analysis',
 };
@@ -79,8 +50,8 @@ const LOADING_STAGES = [
   },
   {
     id: 'explanation',
-    title: 'Generating Explanation',
-    desc: 'Synthesizing evidence-grounded municipal decision narrative',
+    title: 'Planning Grounded Evidence',
+    desc: 'The deterministic planner assembles mandatory claims; optional AI may organize them',
   },
   {
     id: 'validation',
@@ -93,7 +64,7 @@ function getClaimCategoryBadge(claimId: string): string {
   if (claimId.includes(':loss')) return 'Trade-off Evidence';
   if (claimId.includes(':transition')) return 'Diurnal Transition';
   if (claimId.includes(':summary')) return 'Optimizer Output';
-  if (claimId.includes(':profile')) return 'Vulnerability Data';
+  if (claimId.includes(':profile')) return 'Facility Evidence';
   if (claimId.includes(':gain')) return 'Baseline Gain';
   if (claimId.includes(':tie_break')) return 'Tie-Break Logic';
   if (claimId.includes(':facility')) return 'Catchment Priority';
@@ -115,11 +86,78 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
   const [showSecondaryPrompts, setShowSecondaryPrompts] = useState<boolean>(false);
   const [auditOpen, setAuditOpen] = useState<boolean>(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const briefControllerRef = useRef<AbortController | null>(null);
 
   const facilityMap = useMemo(
     () => Object.fromEntries(facilities.map((f) => [f.facility_id, f])),
     [facilities]
   );
+
+  const unselectedFacilityIds = useMemo(
+    () => facilities.map((facility) => facility.facility_id).filter(
+      (facilityId) => !selectedFacilityIds.includes(facilityId)
+    ),
+    [facilities, selectedFacilityIds]
+  );
+  const comparisonSelectedId = selectedFacilityIds.includes('DC_135')
+    ? 'DC_135'
+    : selectedFacilityIds.includes('DC_148')
+    ? 'DC_148'
+    : selectedFacilityIds[0];
+  const comparisonAlternativeId =
+    comparisonSelectedId === 'DC_135' && unselectedFacilityIds.includes('DC_148')
+      ? 'DC_148'
+      : comparisonSelectedId === 'DC_148' && unselectedFacilityIds.includes('DC_135')
+      ? 'DC_135'
+      : unselectedFacilityIds[0];
+
+  const primaryPrompts = useMemo(
+    () => [
+      {
+        text: 'What changed in the prepared thermal pattern between 16:00 and 20:00 UTC?',
+        icon: '🌡️',
+        label: 'Diurnal Thermal Shift',
+      },
+      {
+        text: 'Where does heat-weighted demand remain unmet?',
+        icon: '📍',
+        label: 'Unmet Demand',
+      },
+      {
+        text:
+          comparisonSelectedId && comparisonAlternativeId
+            ? `Why was ${comparisonSelectedId} selected instead of ${comparisonAlternativeId} at ${currentTimestamp} UTC?`
+            : 'Why were the current facilities selected?',
+        icon: '⚖️',
+        label: 'Facility Trade-off Rationale',
+      },
+      {
+        text: 'Summarize the thermal-priority and population evidence for this allocation.',
+        icon: '📋',
+        label: 'Evidence-Based Heat Brief',
+      },
+    ],
+    [comparisonAlternativeId, comparisonSelectedId, currentTimestamp]
+  );
+
+  const secondaryPrompts = useMemo(
+    () => [
+      comparisonSelectedId
+        ? `Why is ${comparisonSelectedId} selected at ${currentTimestamp} UTC?`
+        : 'Why are the current facilities selected?',
+      'Compare dynamic allocation against the static baseline',
+      'What does the K=3 constraint change?',
+    ],
+    [comparisonSelectedId, currentTimestamp]
+  );
+
+  useEffect(() => {
+    briefControllerRef.current?.abort();
+    setBrief(null);
+    setError(null);
+    setLoading(false);
+    return () => briefControllerRef.current?.abort();
+  }, [currentTimestamp]);
 
   // Real elapsed seconds tracking during active loading
   useEffect(() => {
@@ -151,24 +189,37 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
     const textToSubmit = (queryText !== undefined ? queryText : question).trim();
     if (!textToSubmit || loading) return;
 
+    // A prior answer belongs to a different question; remove it before exposing
+    // the new request's progress state so stale evidence cannot be misread.
+    setBrief(null);
     setLoading(true);
     setError(null);
+    briefControllerRef.current?.abort();
+    const controller = new AbortController();
+    briefControllerRef.current = controller;
 
     try {
-      const response = await fetchHeatBrief({
-        question: textToSubmit,
-        timestamp: currentTimestamp,
-        baseline_timestamp: '16:00',
-        radius_meters: 750,
-        k: selectedFacilityIds.length || 3,
-      });
+      const response = await fetchHeatBrief(
+        {
+          question: textToSubmit,
+          timestamp: currentTimestamp,
+          baseline_timestamp: '16:00',
+          radius_meters: 750,
+          k: selectedFacilityIds.length || 3,
+        },
+        controller.signal
+      );
+      if (controller.signal.aborted) return;
       setBrief(response);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      if (controller.signal.aborted) return;
       setError(
-        err.message || 'Failed to generate heat intelligence brief. Please verify backend service.'
+        err instanceof Error
+          ? err.message
+          : 'Failed to generate heat intelligence brief. Please verify backend service.'
       );
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   };
 
@@ -234,7 +285,7 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
             <div className="heat-intel-status-bar">
               {brief.status === 'AI_GENERATED' ? (
                 <span className="badge-ai-mode mode-ai font-mono">
-                  <Sparkles size={11} className="inline-icon" /> AI Explanation Active
+                  <Sparkles size={11} className="inline-icon" /> AI-Organized Evidence
                 </span>
               ) : brief.status === 'UNSUPPORTED' ? (
                 <span className="badge-ai-mode mode-fallback font-mono">
@@ -242,7 +293,7 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
                 </span>
               ) : (
                 <span className="badge-ai-mode mode-fallback font-mono">
-                  <ShieldCheck size={11} className="inline-icon" /> Verified Deterministic Mode Active
+                  <ShieldCheck size={11} className="inline-icon" /> Verified Deterministic Brief
                 </span>
               )}
               {brief.intent_code ? (
@@ -257,9 +308,9 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
         </div>
 
         <p className="heat-intel-subhead">
-          Temperature AI explains and validates municipal heat decisions using FortyGuard 100m
-          thermal patterns and census vulnerability, while the deterministic spatial optimizer
-          remains the authoritative decision engine.
+          Temperature AI routes questions and organizes server-validated claims from prepared
+          FortyGuard temperature data and Census population evidence. The deterministic spatial
+          optimizer remains the authoritative allocation engine.
         </p>
       </div>
 
@@ -274,14 +325,14 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
             {currentTimestamp} UTC Thermal Grid
           </span>
           <span className="evidence-source-sub">
-            FortyGuard 100m thermal grid identifies where heat exposure concentrates.
+            Prepared FortyGuard 100m cells provide observed physical temperature values.
           </span>
         </div>
 
         <div className="evidence-source-card">
           <div className="evidence-source-header">
             <Users size={14} className="text-sky" />
-            <span className="evidence-source-label">HUMAN VULNERABILITY</span>
+            <span className="evidence-source-label">RESIDENTIAL POPULATION</span>
           </div>
           <span className="evidence-source-value font-mono">
             {metrics
@@ -289,7 +340,7 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
               : '—'}
           </span>
           <span className="evidence-source-sub">
-            Census population data reveals where heat exposure affects residents.
+            2020 Census counts provide the population term in heat-weighted demand.
           </span>
         </div>
 
@@ -302,7 +353,7 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
             k={selectedFacilityIds.length || 3} Optimal Facilities
           </span>
           <span className="evidence-source-sub">
-            Deterministic mathematical optimization selects the best municipal response.
+            Deterministic optimization selects the authoritative facility set.
           </span>
         </div>
 
@@ -315,7 +366,7 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
             {metrics ? `${metrics.coverage_percentage.toFixed(1)}% Demand` : '—'}
           </span>
           <span className="evidence-source-sub">
-            Baseline comparison proves the value under identical resource constraints.
+            Baseline comparison quantifies differences under the same K constraint.
           </span>
         </div>
       </div>
@@ -324,7 +375,7 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
       <div className="heat-inquiries-toolbar">
         <span className="toolbar-heading">Temperature AI Inquiries:</span>
         <div className="inquiry-chips-row">
-          {PRIMARY_PROMPTS.map((item) => (
+          {primaryPrompts.map((item) => (
             <button
               key={item.text}
               type="button"
@@ -352,7 +403,7 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
       {/* Secondary Inquiries Expansion */}
       {showSecondaryPrompts && (
         <div className="secondary-inquiries-drawer">
-          {SECONDARY_PROMPTS.map((promptText) => (
+          {secondaryPrompts.map((promptText) => (
             <button
               key={promptText}
               type="button"
@@ -380,7 +431,7 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
             ref={inputRef}
             type="text"
             className="heat-intel-input"
-            placeholder="Ask about thermal exposure changes, facility vulnerability, or allocation trade-offs..."
+            placeholder="Ask about temperatures, population coverage, K=3, facilities, or baseline trade-offs..."
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             disabled={loading}
@@ -409,7 +460,7 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
           <div className="stepper-header-row">
             <div className="stepper-title-group">
               <span className="stepper-pulse-dot" />
-              <span className="stepper-title">Synthesizing Temperature Intelligence Brief</span>
+            <span className="stepper-title">Preparing Grounded Temperature Brief</span>
             </div>
             <div className="stepper-timer-badge font-mono">
               <Clock size={12} />
@@ -445,7 +496,7 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
           </div>
 
           <div className="stepper-safety-note">
-            <span>🛡️ Verified safety guarantee: Grounded in FortyGuard thermal data and authoritative mathematical optimization.</span>
+            <span>🛡️ Factual claims are rendered from server-validated deterministic evidence.</span>
           </div>
         </div>
       )}
@@ -469,7 +520,7 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
               <ShieldCheck size={20} className="fallback-shield-icon text-emerald" />
               <div className="fallback-text">
                 <div className="fallback-headline">
-                  <strong>Verified Deterministic Intelligence Mode Active</strong>
+                  <strong>Verified deterministic brief</strong>
                 </div>
                 <div className="fallback-sub">
                   All facility selections, coverage metrics, and tie-breaking decisions are computed
@@ -506,10 +557,10 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
               <div className="insight-title-group">
                 <span className="insight-pill-tag">
                   {brief.status === 'AI_GENERATED'
-                    ? 'AI HEAT INTELLIGENCE'
+                    ? 'AI-ORGANIZED GROUNDED EVIDENCE'
                     : brief.status === 'UNSUPPORTED'
                     ? 'SCOPE BOUNDARY'
-                    : 'DETERMINISTIC HEAT INTELLIGENCE'}
+                    : 'AUTHORITATIVE EVIDENCE BRIEF'}
                 </span>
                 <h4 className="insight-title">{brief.title}</h4>
               </div>
@@ -592,4 +643,3 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
     </div>
   );
 };
-

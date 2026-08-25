@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   ScenarioResponse,
   AllocationResponse,
@@ -17,6 +17,7 @@ import { BaselineComparison } from './components/BaselineComparison';
 import { ReplacementDrawer } from './components/ReplacementDrawer';
 import { DisclosuresFooter } from './components/DisclosuresFooter';
 import { ProcessingOverlay } from './components/ProcessingOverlay';
+import { AllocationImpactStrip } from './components/AllocationImpactStrip';
 import './App.css';
 
 export function App() {
@@ -37,20 +38,34 @@ export function App() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [showProcessingOverlay, setShowProcessingOverlay] = useState<boolean>(true);
+  const requestGenerationRef = useRef<number>(0);
+  const activeRequestControllerRef = useRef<AbortController | null>(null);
 
   // Unified atomic data loader
   const loadData = useCallback(async (timestamp: string, isInitial: boolean = false) => {
+    const requestGeneration = requestGenerationRef.current + 1;
+    requestGenerationRef.current = requestGeneration;
+    activeRequestControllerRef.current?.abort();
+    const controller = new AbortController();
+    activeRequestControllerRef.current = controller;
+
     try {
       setLoading(true);
       setError(null);
+      if (!isInitial) {
+        // Never label prior timestamp results as the newly requested timestamp.
+        setAllocation(null);
+        setThermalGeoJSON(null);
+      }
 
-      if (isInitial || !scenario) {
+      if (isInitial) {
         const [scenarioData, allocData, geoData] = await Promise.all([
-          fetchScenario(),
-          fetchAllocation(timestamp, '16:00', 750, 3),
-          fetchGeoJSON('all', timestamp),
+          fetchScenario(controller.signal),
+          fetchAllocation(timestamp, '16:00', 750, 3, controller.signal),
+          fetchGeoJSON('all', timestamp, controller.signal),
         ]);
 
+        if (requestGeneration !== requestGenerationRef.current) return;
         setScenario(scenarioData);
         setFacilities(scenarioData.candidate_facilities || []);
         setAllocation(allocData);
@@ -60,10 +75,11 @@ export function App() {
         if (geoObj.aoi) setAoiGeoJSON(geoObj.aoi);
       } else {
         const [allocData, geoData] = await Promise.all([
-          fetchAllocation(timestamp, '16:00', 750, 3),
-          fetchGeoJSON('all', timestamp),
+          fetchAllocation(timestamp, '16:00', 750, 3, controller.signal),
+          fetchGeoJSON('all', timestamp, controller.signal),
         ]);
 
+        if (requestGeneration !== requestGenerationRef.current) return;
         setAllocation(allocData);
 
         const geoObj = geoData as Record<string, GeoJSONFeatureCollection>;
@@ -71,18 +87,25 @@ export function App() {
         if (geoObj.aoi) setAoiGeoJSON(geoObj.aoi);
       }
 
-      setLoading(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      if (controller.signal.aborted || requestGeneration !== requestGenerationRef.current) {
+        return;
+      }
       console.error('Failed to load CoolAccess dashboard data:', err);
-      setError(err.message || 'Error updating dashboard state');
-      setLoading(false);
+      setError(err instanceof Error ? err.message : 'Error updating dashboard state');
+      setShowProcessingOverlay(false);
+    } finally {
+      if (requestGeneration === requestGenerationRef.current) {
+        setLoading(false);
+      }
     }
-  }, [scenario]);
+  }, []);
 
   // Initial load
   useEffect(() => {
     loadData('16:00', true);
-  }, []);
+    return () => activeRequestControllerRef.current?.abort();
+  }, [loadData]);
 
   const handleSelectTimestamp = (ts: string) => {
     if (ts === currentTimestamp) return;
@@ -94,10 +117,12 @@ export function App() {
     setFocusedFacilityId(id);
   };
 
+  const displayedTimestamp = allocation?.timestamp || currentTimestamp;
+
   return (
     <div className="app-layout">
       {/* Header & Scenario Context */}
-      <Header scenario={scenario} currentTimestamp={currentTimestamp} />
+      <Header scenario={scenario} currentTimestamp={displayedTimestamp} />
 
       {/* Diurnal Timeline Switcher */}
       <TimelineControl
@@ -106,10 +131,21 @@ export function App() {
         availableTimestamps={scenario?.available_timestamps_utc || ['14:00', '16:00', '18:00', '20:00', '22:00']}
       />
 
+      <AllocationImpactStrip
+        allocation={allocation}
+        facilities={facilities}
+        currentTimestamp={displayedTimestamp}
+        onSelectTimestamp={handleSelectTimestamp}
+        primaryTransition={scenario?.primary_transition}
+      />
+
       {error && (
         <div className="app-error-banner">
           <span>⚠️ {error}</span>
-          <button type="button" onClick={() => loadData(currentTimestamp, false)}>
+          <button
+            type="button"
+            onClick={() => loadData(currentTimestamp, scenario === null)}
+          >
             Retry Connection
           </button>
         </div>
@@ -124,7 +160,11 @@ export function App() {
               <span className="panel-indicator-pill">GEOSPATIAL DECISION CANVAS</span>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 {loading && <span className="system-pill" style={{ color: '#f59e0b', borderColor: '#f59e0b' }}>SYNCHRONIZING...</span>}
-                <span className="map-active-badge">Active Horizon: {currentTimestamp} UTC</span>
+                <span className="map-active-badge">
+                  {allocation
+                    ? `Active Dataset: ${allocation.timestamp} UTC`
+                    : `Loading Dataset: ${currentTimestamp} UTC`}
+                </span>
               </div>
             </div>
 
@@ -174,7 +214,7 @@ export function App() {
       {/* Temperature AI Decision Intelligence Layer & Municipal Heat Analyst */}
       <section className="dashboard-section">
         <HeatIntelligencePanel
-          currentTimestamp={currentTimestamp}
+          currentTimestamp={displayedTimestamp}
           facilities={facilities}
           metrics={allocation?.coverage_metrics || null}
           selectedFacilityIds={allocation?.selected_facility_ids || []}
@@ -190,14 +230,14 @@ export function App() {
           dynamicFacilities={allocation?.selected_facility_ids || []}
           staticBaseline={allocation?.static_baseline || null}
           naiveBaseline={allocation?.naive_baseline || null}
-          currentTimestamp={currentTimestamp}
+          currentTimestamp={displayedTimestamp}
         />
       </section>
 
       {/* Bottom Proof Section: 1-for-1 Replacement Evidence */}
       <section className="dashboard-section">
         <ReplacementDrawer
-          currentTimestamp={currentTimestamp}
+          currentTimestamp={displayedTimestamp}
           facilities={facilities}
           selectedFacilityIds={allocation?.selected_facility_ids || []}
         />
@@ -207,7 +247,7 @@ export function App() {
       <DisclosuresFooter scenario={scenario} />
 
       {/* Staged Temperature AI Processing Experience for Demo */}
-      {showProcessingOverlay && (
+      {showProcessingOverlay && !error && (
         <ProcessingOverlay
           isDataReady={!loading && scenario !== null && allocation !== null}
           onComplete={() => setShowProcessingOverlay(false)}

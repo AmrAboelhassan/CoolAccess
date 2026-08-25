@@ -9,8 +9,8 @@ import {
 
 const API_BASE = '/api';
 
-export async function fetchScenario(): Promise<ScenarioResponse> {
-  const res = await fetch(`${API_BASE}/scenario`);
+export async function fetchScenario(signal?: AbortSignal): Promise<ScenarioResponse> {
+  const res = await fetch(`${API_BASE}/scenario`, { signal });
   if (!res.ok) {
     throw new Error(`Failed to fetch scenario: ${res.status} ${res.statusText}`);
   }
@@ -21,7 +21,8 @@ export async function fetchAllocation(
   timestamp: string = '16:00',
   baselineTimestamp: string = '16:00',
   radiusMeters: number = 750,
-  k: number = 3
+  k: number = 3,
+  signal?: AbortSignal
 ): Promise<AllocationResponse> {
   const params = new URLSearchParams({
     timestamp,
@@ -29,7 +30,7 @@ export async function fetchAllocation(
     radius_meters: radiusMeters.toString(),
     k: k.toString(),
   });
-  const res = await fetch(`${API_BASE}/allocate?${params.toString()}`);
+  const res = await fetch(`${API_BASE}/allocate?${params.toString()}`, { signal });
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(errorData.detail || `Allocation failed with status ${res.status}`);
@@ -42,7 +43,8 @@ export async function fetchReplacement(
   selectedId?: string,
   unselectedId?: string,
   radiusMeters: number = 750,
-  k: number = 3
+  k: number = 3,
+  signal?: AbortSignal
 ): Promise<ReplacementResponse> {
   const params = new URLSearchParams({
     timestamp,
@@ -52,7 +54,7 @@ export async function fetchReplacement(
   if (selectedId) params.set('selected_id', selectedId);
   if (unselectedId) params.set('unselected_id', unselectedId);
 
-  const res = await fetch(`${API_BASE}/replacement?${params.toString()}`);
+  const res = await fetch(`${API_BASE}/replacement?${params.toString()}`, { signal });
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(errorData.detail || `Replacement request failed: ${res.status}`);
@@ -62,10 +64,11 @@ export async function fetchReplacement(
 
 export async function fetchGeoJSON(
   layer: 'all' | 'thermal' | 'facilities' | 'demand' | 'aoi' = 'all',
-  timestamp: string = '16:00'
+  timestamp: string = '16:00',
+  signal?: AbortSignal
 ): Promise<Record<string, GeoJSONFeatureCollection> | GeoJSONFeatureCollection> {
   const params = new URLSearchParams({ layer, timestamp });
-  const res = await fetch(`${API_BASE}/geojson?${params.toString()}`);
+  const res = await fetch(`${API_BASE}/geojson?${params.toString()}`, { signal });
   if (!res.ok) {
     throw new Error(`Failed to load GeoJSON layer '${layer}': ${res.status}`);
   }
@@ -73,7 +76,8 @@ export async function fetchGeoJSON(
 }
 
 export async function fetchHeatBrief(
-  request: HeatBriefRequest
+  request: HeatBriefRequest,
+  signal?: AbortSignal
 ): Promise<HeatBriefResponse> {
   const res = await fetch(`${API_BASE}/heat-intelligence/brief`, {
     method: 'POST',
@@ -81,6 +85,7 @@ export async function fetchHeatBrief(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(request),
+    signal,
   });
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({ detail: res.statusText }));

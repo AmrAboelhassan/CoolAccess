@@ -20,7 +20,10 @@ const AOI_CENTER: [number, number] = [38.895, -77.011];
 const DEFAULT_ZOOM = 14;
 
 // Fixed thermal color interpolation matching Method A anchors: [32.022, 37.699]
-function getThermalColor(tempC: number): string {
+function getThermalColor(tempC: number | null | undefined): string {
+  if (typeof tempC !== 'number' || !Number.isFinite(tempC)) {
+    return '#475569';
+  }
   const minT = 32.022;
   const maxT = 37.699;
   const ratio = Math.max(0, Math.min(1, (tempC - minT) / (maxT - minT)));
@@ -130,7 +133,7 @@ export const MapView: React.FC<MapViewProps> = ({
             key={`thermal-grid-${allocation?.timestamp || 'default'}`}
             data={thermalGeoJSON as any}
             style={(feature) => {
-              const temp = feature?.properties?.temperature_c ?? 34.0;
+              const temp = feature?.properties?.temperature_c;
               return {
                 fillColor: getThermalColor(temp),
                 fillOpacity: 0.52,
@@ -141,13 +144,17 @@ export const MapView: React.FC<MapViewProps> = ({
             onEachFeature={(feature, layer) => {
               const props = feature.properties;
               if (props) {
-                const temp = props.temperature_c ? props.temperature_c.toFixed(2) : 'N/A';
-                const weight = props.thermal_weight !== undefined ? Number(props.thermal_weight).toFixed(4) : 'N/A';
+                const rawTemp = Number(props.temperature_c);
+                const rawPriority = Number(props.thermal_priority);
+                const temp = Number.isFinite(rawTemp) ? `${rawTemp.toFixed(2)}°C` : 'Unavailable';
+                const priority = Number.isFinite(rawPriority)
+                  ? rawPriority.toFixed(4)
+                  : 'Unavailable';
                 layer.bindTooltip(
                   `<div class="grid-tooltip">
                     <strong>100m Grid Cell</strong><br/>
-                    Temperature: <span class="text-amber">${temp}°C</span><br/>
-                    Thermal Priority: <span>${weight}</span>
+                    Temperature: <span class="text-amber">${temp}</span><br/>
+                    Thermal Priority Weight: <span>${priority}</span>
                   </div>`,
                   { sticky: true, className: 'custom-leaflet-tooltip' }
                 );
@@ -156,7 +163,7 @@ export const MapView: React.FC<MapViewProps> = ({
           />
         )}
 
-        {/* 750m Proximity Catchment Circles */}
+        {/* Request-authoritative proximity catchment circles */}
         {showCatchments &&
           facilities.map((facility) => {
             const isSelected = selectedFacilityIds.has(facility.facility_id);
@@ -164,7 +171,7 @@ export const MapView: React.FC<MapViewProps> = ({
               <Circle
                 key={`catchment-${facility.facility_id}-${isSelected}`}
                 center={[facility.latitude, facility.longitude]}
-                radius={750}
+                radius={allocation?.radius_meters ?? 750}
                 pathOptions={{
                   color: isSelected ? '#10b981' : '#64748b',
                   weight: isSelected ? 2 : 1,
@@ -201,7 +208,9 @@ export const MapView: React.FC<MapViewProps> = ({
                         isSelected ? 'status-active' : 'status-inactive'
                       }`}
                     >
-                      {isSelected ? 'ACTIVE PRIORITY (K=3)' : 'STANDBY / INACTIVE'}
+                      {isSelected
+                        ? `ACTIVE ALLOCATION (K=${allocation?.k ?? 3})`
+                        : 'ELIGIBLE / UNSELECTED'}
                     </span>
                   </div>
                   <h3 className="popup-name">{facility.name}</h3>
@@ -235,7 +244,7 @@ export const MapView: React.FC<MapViewProps> = ({
                   </div>
                   <div className="popup-footer">
                     <span className="popup-disclaimer">
-                      750m geographic accessibility proxy • 2020 Census residential pop
+                      {allocation?.radius_meters ?? 750}m geographic accessibility proxy • 2020 Census residential population
                     </span>
                   </div>
                 </div>

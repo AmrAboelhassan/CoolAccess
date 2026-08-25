@@ -1,8 +1,9 @@
 """AI Model Gateways for CoolAccess Temperature Intelligence Layer.
 
-Provides production ModelGateway adapters:
-1. OpenRouterModelGateway (primary runtime provider using standard Chat Completions + json_schema)
-2. GeminiModelGateway (optional Google Gemini provider using google-genai SDK)
+The configured runtime provider is OpenRouter using standard Chat Completions
+with structured JSON output. A legacy Gemini adapter remains isolated below for
+source compatibility, but Gemini is not an advertised or selectable runtime
+provider because ``google-genai`` is not part of the project dependency manifest.
 
 Invariants:
 - Zero facility selection or calculation by LLMs.
@@ -66,7 +67,7 @@ GEMINI_DEFAULT_TOTAL_TIMEOUT_SECONDS = 60.0
 GEMINI_MAX_TURN_TIMEOUT_SECONDS = 30.0
 GEMINI_MIN_PROVIDER_TIMEOUT_SECONDS = 10.0
 
-SUPPORTED_PROVIDERS = {PROVIDER_OPENROUTER, PROVIDER_GEMINI}
+SUPPORTED_PROVIDERS = {PROVIDER_OPENROUTER}
 
 SYSTEM_POLICY = (
     "You are the CoolAccess Municipal Heat Analyst for prepared historical FortyGuard "
@@ -119,6 +120,9 @@ def build_tool_selection_prompt(context: GatewayClassificationContext) -> str:
     return (
         f"Municipal Inquiry: {context.question}\n"
         f"Active Scenario Timestamp: {context.current_timestamp} UTC\n\n"
+        f"Authoritative Facility-Count Budget: k={context.k}\n"
+        f"Authoritative Catchment Radius: {context.radius_meters} m\n"
+        f"Currently Selected Facility IDs: {list(context.selected_facility_ids)}\n\n"
         "Supported Intent Codes:\n"
         f"{chr(10).join(intents_info)}\n\n"
         "Available Candidate Facility IDs:\n"
@@ -130,7 +134,8 @@ def build_tool_selection_prompt(context: GatewayClassificationContext) -> str:
         "- For REPLACEMENT_RATIONALE: Identify the target facilities and select "
         "get_replacement_evidence(facility_id, alternative_id).\n"
         "- For HEAT_VULNERABILITY_EXPLANATION: Select "
-        "get_heat_vulnerability_profile(facility_id) and/or get_allocation_plan().\n"
+        "get_heat_vulnerability_profile(facility_id) for each explicitly named facility "
+        "(up to two) and/or get_allocation_plan().\n"
         "- For DIURNAL_HEAT_TRANSITION: Select "
         "get_diurnal_heat_transition(target_timestamp) and/or "
         "get_diurnal_thermal_profile(target_timestamp).\n"
@@ -481,9 +486,7 @@ def load_ai_config() -> AIConfig | None:
         )
         return None
 
-    default_model = (
-        DEFAULT_OPENROUTER_MODEL if provider == PROVIDER_OPENROUTER else DEFAULT_GEMINI_MODEL
-    )
+    default_model = DEFAULT_OPENROUTER_MODEL
     model = os.environ.get("COOLACCESS_AI_MODEL", default_model).strip()
     if not model:
         model = default_model
@@ -506,9 +509,6 @@ def get_runtime_model_gateway() -> ModelGateway:
 
     if config.provider == PROVIDER_OPENROUTER:
         return OpenRouterModelGateway(api_key=config.api_key, model=config.model)
-    elif config.provider == PROVIDER_GEMINI:
-        return GeminiModelGateway(api_key=config.api_key, model=config.model)
-
     return DisabledModelGateway()
 
 
@@ -963,12 +963,12 @@ class OpenRouterModelGateway:
 
 
 # -----------------------------------------------------------------------------
-# Google Gemini Model Gateway Implementation (Optional Secondary Provider)
+# Legacy Google Gemini adapter (not selectable in the packaged runtime)
 # -----------------------------------------------------------------------------
 
 
 class GeminiModelGateway:
-    """Production Gemini adapter implementing the bounded ModelGateway protocol."""
+    """Unpackaged compatibility adapter; not selectable by runtime configuration."""
 
     def __init__(
         self,

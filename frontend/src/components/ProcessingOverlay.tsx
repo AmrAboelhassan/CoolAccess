@@ -33,9 +33,9 @@ const STAGES: ProcessingStage[] = [
   },
   {
     step: 2,
-    title: 'Analyzing population exposure...',
-    subtitle: 'Intersecting thermal patterns with census vulnerability data',
-    tag: 'CENSUS_VULNERABILITY',
+    title: 'Loading residential population evidence...',
+    subtitle: 'Joining prepared thermal cells with 2020 Census population counts',
+    tag: 'CENSUS_POPULATION',
     icon: Users,
   },
   {
@@ -48,15 +48,15 @@ const STAGES: ProcessingStage[] = [
   {
     step: 4,
     title: 'Solving optimization objective...',
-    subtitle: 'Maximizing heat-weighted population protection',
+    subtitle: 'Maximizing covered heat-weighted demand',
     tag: 'DETERMINISTIC_OPTIMIZER',
     icon: ShieldCheck,
   },
   {
     step: 5,
-    title: 'Preparing Temperature AI decision intelligence...',
-    subtitle: 'Generating evidence-grounded municipal insights',
-    tag: 'DECISION_INTELLIGENCE',
+    title: 'Preparing decision evidence...',
+    subtitle: 'Formatting deterministic results; AI inquiry remains a separate user action',
+    tag: 'EVIDENCE_INTERFACE',
     icon: Sparkles,
   },
 ];
@@ -109,7 +109,7 @@ export const ProcessingOverlay: React.FC<ProcessingOverlayProps> = ({
           <div className="processing-brand-text">
             <div className="processing-brand-title-row">
               <span className="processing-title">CoolAccess</span>
-              <span className="processing-tag">TEMPERATURE AI PIPELINE</span>
+              <span className="processing-tag">TEMPERATURE DECISION PIPELINE</span>
             </div>
             <span className="processing-sub">
               Municipal Heat Resilience & Spatial Decision Platform
@@ -162,10 +162,10 @@ export const ProcessingOverlay: React.FC<ProcessingOverlayProps> = ({
           <div className="pipeline-pulse-dot" />
           <span className="pipeline-status-text">
             {sequenceFinished && !isDataReady
-              ? 'Finalizing real-time telemetry verification...'
+              ? 'Waiting for prepared benchmark data...'
               : sequenceFinished && isDataReady
               ? 'Verification complete — rendering decision platform...'
-              : 'Autonomous spatial reasoning active...'}
+              : 'Deterministic spatial analysis in progress...'}
           </span>
         </div>
       </div>

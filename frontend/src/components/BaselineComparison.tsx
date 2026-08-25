@@ -29,7 +29,22 @@ export const BaselineComparison: React.FC<BaselineComparisonProps> = ({
   const naiveGain = naiveBaseline?.absolute_gain ?? 0;
   const naiveGainPct = naiveBaseline?.percentage_gain ?? 0;
 
-  const hasStaticAdvantage = staticGain > 0;
+  const hasStaticAdvantage = staticGain > 0.005;
+  const hasStaticDisadvantage = staticGain < -0.005;
+  const hasNaiveAdvantage = naiveGain > 0.005;
+  const hasNaiveDisadvantage = naiveGain < -0.005;
+  const populationDeltaLabel =
+    staticPopDelta > 0
+      ? 'MORE RESIDENTS COVERED VS STATIC'
+      : staticPopDelta < 0
+      ? 'FEWER RESIDENTS COVERED VS STATIC'
+      : 'RESIDENT COVERAGE VS STATIC';
+  const populationDeltaValue =
+    staticPopDelta > 0
+      ? `+${staticPopDelta.toLocaleString()}`
+      : staticPopDelta < 0
+      ? `${Math.abs(staticPopDelta).toLocaleString()} fewer`
+      : 'Same coverage';
 
   if (dynamicFacilities.length === 0 || (!staticBaseline && !naiveBaseline)) {
     return (
@@ -64,7 +79,7 @@ export const BaselineComparison: React.FC<BaselineComparisonProps> = ({
               Baseline Comparison Proof (Same K={budgetK || 3} Budget)
             </h3>
             <p className="section-subtitle">
-              Comparing Dynamic Optimization against Static & Naive Thermal Baselines under identical inputs at {currentTimestamp} UTC
+              Dynamic optimization compared with static and naive hottest-catchment baselines at {currentTimestamp} UTC
             </p>
           </div>
         </div>
@@ -73,13 +88,17 @@ export const BaselineComparison: React.FC<BaselineComparisonProps> = ({
           <div className="key-gain-badge">
             <TrendingUp size={16} />
             <span>
-              +{staticGainPct.toFixed(2)}% Heat Protection Gain (+{staticGain >= 0 ? `+${staticGain.toFixed(2)}` : staticGain.toFixed(2)} Demand Units) | $0 Budget Increase
+              +{staticGainPct.toFixed(2)}% heat-weighted demand (+{staticGain.toFixed(2)} units) with the same K={budgetK || 3}
             </span>
           </div>
         ) : (
           <div className="key-gain-badge neutral">
             <ShieldCheck size={16} />
-            <span>Optimal Baseline Parity (k={budgetK || 3})</span>
+            <span>
+              {hasStaticDisadvantage
+                ? `${Math.abs(staticGain).toFixed(2)} fewer demand units than static`
+                : `Same objective as static baseline (K=${budgetK || 3})`}
+            </span>
           </div>
         )}
       </div>
@@ -89,34 +108,40 @@ export const BaselineComparison: React.FC<BaselineComparisonProps> = ({
         <div className="summary-stat-cell">
           <span className="summary-stat-label">DIURNAL OPTIMIZATION RESPONSE</span>
           <span className="summary-stat-value text-emerald font-mono">
-            {hasStaticAdvantage ? `+${staticGainPct.toFixed(1)}% Gain` : 'Current State: Baseline Parity'}
+            {hasStaticAdvantage
+              ? `+${staticGainPct.toFixed(2)}% vs Static`
+              : hasStaticDisadvantage
+              ? `${Math.abs(staticGainPct).toFixed(2)}% below Static`
+              : 'Same Objective as Static'}
           </span>
           <span className="summary-stat-sub">
             {hasStaticAdvantage
-              ? `+${staticGain.toFixed(2)} heat demand units protected via dynamic shelter shift`
-              : 'The system detects no required reallocation at the current horizon because thermal conditions have not shifted yet. Dynamic advantages emerge as heat retention patterns evolve later in the day.'}
+              ? `${staticGain.toFixed(2)} more heat-weighted demand units covered by the dynamic set.`
+              : hasStaticDisadvantage
+              ? `${Math.abs(staticGain).toFixed(2)} fewer heat-weighted demand units covered than the static set.`
+              : 'The dynamic and static sets produce the same heat-weighted demand objective at this timestamp.'}
           </span>
         </div>
 
         <div className="summary-stat-cell">
-          <span className="summary-stat-label">ADDITIONAL PROTECTED RESIDENTS</span>
+          <span className="summary-stat-label">{populationDeltaLabel}</span>
           <span className="summary-stat-value text-sky font-mono">
-            {staticPopDelta > 0 ? `+${staticPopDelta.toLocaleString()}` : `${staticPopDelta.toLocaleString()}`}
+            {populationDeltaValue}
           </span>
           <span className="summary-stat-sub">
-            {hasStaticAdvantage
-              ? `vs ${staticBaseline?.source_timestamp || 'initial'} static allocation`
-              : 'Advantage unlocks as thermal conditions shift across diurnal cycle'}
+            {staticPopDelta === 0
+              ? 'Same 2020 Census resident coverage as the static baseline'
+              : `Compared with the ${staticBaseline?.source_timestamp || 'reference'} static allocation`}
           </span>
         </div>
 
         <div className="summary-stat-cell">
           <span className="summary-stat-label">MUNICIPAL RESOURCE BUDGET</span>
           <span className="summary-stat-value text-amber font-mono">
-            $0 Cost Increase
+            K={budgetK || 3} Active Facilities
           </span>
           <span className="summary-stat-sub">
-            Same k={budgetK || 3} municipal resource constraint
+            Same facility-count budget in every comparison; no monetary cost model is asserted
           </span>
         </div>
       </div>
@@ -154,7 +179,7 @@ export const BaselineComparison: React.FC<BaselineComparisonProps> = ({
           </div>
 
           <p className="comp-summary-text">
-            Maximizes union coverage of population-weighted thermal priority while eliminating spatial overlap penalties.
+            Maximizes union coverage of heat-weighted demand without double-counting overlapping catchments.
           </p>
         </div>
 
@@ -193,8 +218,10 @@ export const BaselineComparison: React.FC<BaselineComparisonProps> = ({
 
           <p className="comp-summary-text">
             {staticGain > 0
-              ? `Keeps ${staticBaseline?.source_timestamp || 'earlier'} allocation active into current horizon, failing to shift resources where late-day thermal inertia peaks.`
-              : 'No reallocation is required at this horizon. The advantage appears when diurnal heat retention changes spatial thermal priorities.'}
+              ? `Retaining the ${staticBaseline?.source_timestamp || 'reference'} facility set covers ${staticGain.toFixed(2)} fewer heat-weighted demand units at this timestamp.`
+              : hasStaticDisadvantage
+              ? `The static set covers ${Math.abs(staticGain).toFixed(2)} more heat-weighted demand units at this timestamp.`
+              : 'The static and dynamic allocations produce the same objective at this timestamp.'}
           </p>
         </div>
 
@@ -202,7 +229,7 @@ export const BaselineComparison: React.FC<BaselineComparisonProps> = ({
         <div className="comp-card">
           <div className="comp-badge warning">
             <AlertTriangle size={13} />
-            <span>Naive Thermal Baseline (Hottest Only)</span>
+            <span>Naive Hottest-Catchment Baseline</span>
           </div>
 
           <div className="comp-facility-tags">
@@ -227,17 +254,20 @@ export const BaselineComparison: React.FC<BaselineComparisonProps> = ({
             <div className="comp-stat-row">
               <span className="stat-label">Deficit vs Dynamic:</span>
               <span className="stat-value text-amber">
-                {naiveGain > 0 ? `-${naiveGain.toFixed(2)} (-${naiveGainPct.toFixed(1)}%)` : '0.00'}
+                {hasNaiveAdvantage
+                  ? `-${naiveGain.toFixed(2)} (-${naiveGainPct.toFixed(2)}%)`
+                  : hasNaiveDisadvantage
+                  ? `+${Math.abs(naiveGain).toFixed(2)} vs Dynamic`
+                  : 'Matches Dynamic (0.00)'}
               </span>
             </div>
           </div>
 
           <p className="comp-summary-text">
-            Picks highest average temperature catchments without accounting for population density or overlapping coverage zones.
+            Selects the hottest catchments using the benchmark rule. At this timestamp it may differ from, or tie, the dynamic heat-weighted-demand optimum.
           </p>
         </div>
       </div>
     </div>
   );
 };
-

@@ -1,8 +1,12 @@
-# CoolAccess: Phase 1 Complete Project Context & Single Source of Truth
+# CoolAccess: Archived Phase 1 Context (Superseded)
+
+> **Archive notice (2026-08-25):** This is an earlier planning/productization checkpoint,
+> not the current source of truth. The running application, locked scenario, tests, and
+> `README.md` are authoritative.
 
 **Document Version:** 1.0.0  
 **Phase Completed:** Phase 1 (Productization Layer — Scenario Packaging, FastAPI Service & Automated Verification)  
-**Status:** `READY_FOR_PHASE_2_FRONTEND_IMPLEMENTATION`  
+**Status:** `ARCHIVED_SUPERSEDED_BY_RUNNING_IMPLEMENTATION`
 **Evaluation Date:** 2026-08-24  
 **Primary Author:** Antigravity (Solo Participant Pair)  
 
@@ -18,8 +22,8 @@
 ### The Core Problem It Solves
 Cities facing extreme heat waves have dozens of public facilities (libraries, recreation centers, community centers), but severely constrained operational budgets, staffing, and security resources to activate or extend cooling hours at only a few (e.g. $K = 3$).
 
-Currently, municipal leaders rely on static daytime plans or unweighted citywide average temperatures. This causes severe resource misallocation:
-1. **Static Blindness:** A facility set chosen for midday heat is kept active into the evening, failing to protect neighborhoods where thermal inertia and building heat retention peak late.
+Currently, municipal leaders may rely on static daytime plans or unweighted citywide average temperatures. This can misalign allocation with the defined objective:
+1. **Static Blindness:** A facility set chosen for the prepared 16:00 temperature state covers less heat-weighted demand at 20:00.
 2. **Heatmap-Only Fallacy:** Choosing the hottest single sensor location often wastes resources on low-density or non-residential zones while ignoring dense residential demand and overlapping facility catchments.
 
 ### The Core Technical Idea
@@ -69,14 +73,14 @@ Strictly filtered to official public municipal libraries and recreation centers 
 * **Provider:** FortyGuard Street-Level Thermal API (`tcm` model, 100m raster grid, 1,452 tiles).
 * **Historical Heatwave Date:** `2024-07-15`
 * **Diurnal Snapshots Evaluated:**
-  * `14:00 UTC` (~10:00 EDT — Morning Warmup)
-  * `16:00 UTC` (~12:00 EDT — Midday Peak Solar Radiation) — **NOW Baseline**
-  * `18:00 UTC` (~14:00 EDT — Early Afternoon Peak Ambient Heat)
-  * `20:00 UTC` (~16:00 EDT — Late Afternoon Differential Cooling) — **FUTURE Target Shift**
-  * `22:00 UTC` (~18:00 EDT — Evening Thermal Lag & Masonry Heat Release)
+  * `14:00 UTC` (~10:00 EDT — prepared historical snapshot)
+  * `16:00 UTC` (~12:00 EDT — static-baseline reference)
+  * `18:00 UTC` (~14:00 EDT — prepared historical snapshot)
+  * `20:00 UTC` (~16:00 EDT — allocation-change demonstration)
+  * `22:00 UTC` (~18:00 EDT — prepared historical snapshot)
 
 ### Spatial Accessibility & Resource Budget
-* **Resource Constraint:** $K = 3$ concurrent active facilities ($\binom{6}{3} = 20$ feasible allocations).
+* **Resource Constraint:** $K = 3$ concurrent active facilities. The solver evaluates all 42 subsets of zero through three facilities for the six-candidate benchmark; 20 of those subsets use the full three-facility budget.
 * **Catchment Radius:** **`750 meters`** geodesic straight-line distance ($53.68\%$ union population coverage).
 
 ---
@@ -86,30 +90,31 @@ Strictly filtered to official public municipal libraries and recreation centers 
 ### The Primary Demonstration Shift (`16:00 UTC` $\to$ `20:00 UTC`)
 
 ```text
-16:00 UTC (Midday Peak Heat):
+16:00 UTC (Static-Baseline Reference):
   Optimal Set: { DC_089, DC_148, DC_166 }
-  Objective:   40,540.10 heat-weighted demand units (Covered Population: 41,876)
+  Objective:   40,567.30 heat-weighted demand units (Covered Population: 41,876)
 
-20:00 UTC (Late Afternoon Differential Heat):
+20:00 UTC (Prepared Historical Snapshot):
   Optimal Set: { DC_089, DC_135, DC_166 }
-  Objective:   8,287.16 heat-weighted demand units (Covered Population: 38,357)
+  Objective:   8,328.93 heat-weighted demand units (Covered Population: 38,357)
 
 Decision Change: DC_148 (Northeast Library) is replaced by DC_135 (MLK Jr. Memorial Library)
 ```
 
-### Empirical & Physical Mechanism Supporting the Shift
-1. **At 16:00 UTC (Midday):** Temperatures across the entire city are uniformly severe ($w_A \approx 0.93 - 0.99$). In this state, residential population density drives priority. `DC_148` (Northeast Library, $14,222$ catchment population) generates $14,112.47$ demand, outcompeting `DC_135` (MLK Library, $10,703$ catchment population, generating $10,323.73$ demand).
-2. **At 20:00 UTC (Late Afternoon):** As solar radiation declines, `DC_148`'s residential canopy cools rapidly ($w_A$ plummets to **`0.0616`**), dropping its direct demand to **`775.02`**. In contrast, `DC_135`'s downtown commercial canyon (asphalt, concrete, masonry thermal mass) retains high heat ($w_A = \mathbf{0.2176}$, over $3.5\times$ higher), generating **`2,368.67`** direct demand.
-3. **The Replacement Proof:** Swapping `DC_135` for `DC_148` at 20:00 UTC increases unweighted raw population by $+3,519$, but incurs a **`-1,593.64` ($-19.14\%$) penalty** in covered heat-weighted demand.
+### Authoritative Evidence Supporting the Shift
+1. Prepared FortyGuard temperatures change the normalized thermal-priority weights used in the heat-weighted-demand objective.
+2. The locked data contains no canopy, masonry, irradiance, or urban-canyon causal fields, so CoolAccess does not claim those mechanisms.
+3. At 20:00, replacing selected `DC_135` with unselected `DC_148` adds `3,519` residents of coverage but lowers the objective by **`1,594.45`** heat-weighted demand units.
 
 ### Baseline Comparison Proof at 20:00 UTC (750m)
-* **Dynamic Optimal Allocation:** Objective = **`8,287.16`**
-* **Static Baseline (reusing 16:00 set):** Objective = **`6,693.51`**
-* **Gain over Static Baseline:** **`+1,593.64` (+23.81%)** under Method A (**`+1,263.23` (+10.84%)** under Method B).
-* **Gain over Naive Thermal Baseline:** The dynamic optimizer beats naive thermal ranking by **`+1.12%` to `+7.03%`** at 500m and **`+5.12%` to `+5.50%`** at 1000m where spatial overlap penalizes unweighted selections.
+* **Dynamic Optimal Allocation:** **`8,328.926099`** (display: `8,328.93`).
+* **Static Baseline (reusing 16:00 set):** **`6,734.476716`** (display: `6,734.48`).
+* **Gain over Static Baseline:** **`+1,594.449383` (`+23.6759%`)**; display: `+1,594.45` and `+23.68%`.
+* **Naive Hottest-Catchment Baseline:** Same facilities and objective as the dynamic optimum at 20:00; gain = **zero**.
 
-### Multi-Dimensional Audit & Robustness
-The facility transition (`DC_148` $\to$ `DC_135`) was proven 100% invariant across:
+### Archived Exploratory Robustness Work
+Earlier analysis recorded the transition across the variants below. The packaged runtime uses
+the locked Robust Fixed Anchors scenario; it does not present the other variants as runtime modes.
 1. **Normalization Method A:** Robust Fixed Anchors ($[32.022^\circ\text{C}, 37.699^\circ\text{C}]$).
 2. **Normalization Method B:** Pooled Empirical Cumulative Distribution Function (CDF).
 3. **Spatial Assignment Sensitivity:** Centroid-in-tile vs Area-Weighted Sutherland-Hodgman Polygon Intersection.
@@ -232,17 +237,17 @@ Phase 2 will build the desktop-first interactive municipal web dashboard on top 
 ### Key Interactive Features
 1. **Interactive Thermal Map:**
    * Fixed-scale FortyGuard continuous thermal raster ($32.0^\circ\text{C} - 37.7^\circ\text{C}$).
-   * 2020 Census blocks styled by population and heat exposure.
+   * Prepared temperature and 2020 Census population evidence remain semantically distinct.
    * 6 facility markers with high-contrast active ($K=3$) vs inactive styling.
    * 750m proximity catchment circles/buffers.
 2. **Time Control Switcher:**
-   * One-click instant toggle between `14:00`, `16:00` (NOW Midday), `18:00`, `20:00` (Future Shift), and `22:00` UTC.
+   * One-click toggle among five prepared historical timestamps from `14:00` through `22:00` UTC.
 3. **Dynamic Coverage & Metrics Cards:**
    * Covered heat-weighted demand, total demand, covered population, and percentage coverage.
 4. **Side-by-Side Baseline Proof Panel:**
-   * Visual comparison of *Dynamic Optimized* vs *Static Baseline* vs *Naive Thermal Baseline* with explicit $+23.81\%$ gain badges.
+   * Sign-aware comparison of *Dynamic Optimized*, *Static Baseline*, and *Naive Hottest-Catchment Baseline*.
 5. **Interactive Replacement Evidence Drawer:**
-   * Dropdown/click to inspect facility swaps (e.g. `DC_135` vs `DC_148`), displaying exact demand loss, population delta, and physical explanation.
+   * Facility-swap evidence with deterministic objective loss and population delta, without unsupported physical causes.
 6. **Judge-Friendly Presentation Flow:**
    * Clean, single-screen dashboard layout matching `docs/PRODUCT_AND_DEMO.md`.
 
@@ -258,20 +263,21 @@ Phase 2 will build the desktop-first interactive municipal web dashboard on top 
    * Explain that Northeast Library (`DC_148`) is selected because high midday heat coincides with its large residential population.
 3. **Trigger the Temporal Shift to 20:00 UTC (40–70s):**
    * Click the `20:00 UTC` time button.
-   * Observe the map update atomically: tree-lined residential areas cool down rapidly, while downtown commercial canyons retain intense heat.
+   * Observe the atomic update from the prepared 16:00 state to the prepared 20:00 state.
    * Point to the dynamic reallocation: `{DC_089, DC_135, DC_166}` (`DC_148` is replaced by `DC_135` MLK Library).
 4. **Prove Superiority Over Baselines (70–95s):**
    * Open the Baseline Comparison panel.
-   * Show that keeping the static midday plan yields an objective of only `6,693.51`, whereas the dynamic allocation delivers **`8,287.16` (+23.81% gain)**.
+   * Show static `6,734.48` versus dynamic `8,328.93`: **`+1,594.45` (`+23.68%`)**.
+   * Note that the naive hottest-catchment baseline ties the dynamic optimum at 20:00.
 5. **Inspect Replacement Evidence (95–120s):**
    * Open the Replacement Drawer for `DC_135` vs `DC_148`.
-   * Show that while `DC_148` has $+3,519$ more raw residents, keeping it causes a **`-1,593.64` ($-19.14\%$) demand penalty** because its neighborhood has already cooled down.
-   * Conclude: *“CoolAccess uses FortyGuard hyperlocal evidence to maximize heat protection without adding a single dollar of budget.”*
+   * Show that substituting `DC_148` adds `3,519` residents of coverage but lowers heat-weighted demand by **`1,594.45`** units.
+   * Conclude: *“FortyGuard changed the thermal-priority weights; under the same K=3 facility-count budget, the optimizer changed one facility and covered 1,594.45 more heat-weighted demand units than the retained set.”*
 
 ---
 
 ## 10. Final Status
 
 ```text
-STATUS: READY_FOR_PHASE_2_FRONTEND_IMPLEMENTATION
+STATUS: ARCHIVED_SUPERSEDED_BY_RUNNING_IMPLEMENTATION
 ```

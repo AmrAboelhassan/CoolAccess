@@ -1,9 +1,9 @@
 # CoolAccess Competition Specification v1
 
-**Status:** Pre-build competition specification  
+**Status:** Archived pre-build competition specification
 **Owner:** Solo participant  
 **Last updated:** 2026-08-16  
-**Source of truth:** This document controls product scope. Specialized documents may add detail but must not contradict it.
+**Source of truth:** The running application, locked scenario, tests, and `README.md` now control release truth. In this archived plan, “NOW” and “future” mean earlier and later prepared historical timestamps, never live weather or a forecast. The implemented 20:00 naive baseline ties the optimum; requirements below that demanded improvement over both baselines are superseded.
 
 ## 1. Project definition
 
@@ -143,7 +143,7 @@ At the future comparison timestamp:
 - **Baseline A - Static allocation:** retain the NOW-selected facilities.
 - **Baseline B - Naive thermal allocation:** select the `K` facilities with the highest unweighted mean thermal priority inside their proximity catchments, ignoring population and overlap.
 
-Every comparison holds facilities, population, timestamp, normalization reference, proximity rule, and `K` constant. The optimized result must materially outperform both baselines in the final demo scenario.
+Every comparison holds facilities, population, timestamp, normalization reference, proximity rule, and `K` constant. The implemented 20:00 result materially improves on the retained static set and ties the naive hottest-catchment baseline; this measured result supersedes the earlier requirement to improve on both.
 
 ## 9. Metrics and evidence
 
@@ -177,7 +177,7 @@ Every P0 item materially supports at least one weighted category. Network routin
 
 ## 11. Demo definition
 
-The demo must show the same city, facilities, population, proximity method, and `K=3` at NOW and a future time. A real thermal pattern changes, at least one facility selection changes, and the future optimized allocation materially beats both retaining the NOW set and the naive heat-only set. One evidence comparison must explain why a selected facility beats an unselected alternative.
+The implemented demo shows the same city, facilities, population, proximity method, and `K=3` at prepared historical 16:00 and 20:00 timestamps. The selected set changes and improves on the retained 16:00 allocation; it ties the naive hottest-catchment result at 20:00. One deterministic evidence comparison quantifies a selected-versus-unselected substitution.
 
 The demo is not about an LLM and may not rely on unsupported hours, medical claims, or fabricated provider values.
 

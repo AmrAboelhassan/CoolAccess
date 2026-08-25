@@ -20,14 +20,14 @@ The product's central proof is:
 * **Validated Empirical Benchmark:** Washington, DC scenario locked and empirically verified using real FortyGuard street-level thermal evidence and official 2020 U.S. Census population data.
 * **Deterministic FastAPI Backend:** Strict Pydantic contracts, exact Decimal demand calculations, exhaustive combinatorial maximum-coverage optimizer, baseline models, and replacement loss evidence.
 * **Interactive React GIS Dashboard:** Leaflet geospatial canvas, diurnal timeline controls, performance metrics, facility cards, baseline comparison panel, and 1-for-1 replacement drawer.
-* **131 Passing Automated Tests:** 100% pass rate covering contracts, optimizer, baselines, coverage, replacement loss, repeatability, scenario loading, and server API endpoints.
-* **Inspectable & Provenance-Preserved:** Full-state SHA-256 fingerprints, immutable data provenance registries, and zero black-box heuristics.
+* **Automated Verification:** Repository tests cover contracts, optimizer, baselines, coverage, replacement loss, repeatability, scenario loading, trust boundaries, and API endpoints. Run the suite for the current count and result.
+* **Inspectable & Provenance-Preserved:** Full-state SHA-256 fingerprints, immutable data provenance registries, and explicit AI/fallback status.
 
 ---
 
 ## 1. What CoolAccess Does
 
-During extreme summer heat, urban surface materials, canyon geometries, and tree canopies cause temperatures to vary substantially across adjacent neighborhoods. Municipalities typically operate multiple public facilities (libraries, recreation centers) but possess the budget or staffing to prioritize only a small subset ($K = 3$) for active cooling operations or extended operating hours.
+During extreme summer heat, temperatures can vary across adjacent neighborhoods. Municipalities typically operate multiple public facilities (libraries and recreation centers) but may have resources to prioritize only a small subset ($K = 3$) for cooling-access planning. CoolAccess does not infer the physical cause of an observed temperature pattern.
 
 Traditional heatmaps only display where heat is located; they do not account for where residents live, facility proximity reach, overlapping service areas, or hard budget limits.
 
@@ -35,9 +35,9 @@ CoolAccess solves this with a **deterministic combinatorial optimization engine*
 1. Ingests FortyGuard street-level thermal intelligence, mapped onto an internal 100m geospatial analysis grid across the municipal area of interest.
 2. Combines thermal priority with official residential population at Census-block resolution to compute heat-weighted demand.
 3. Constructs geographic accessibility catchments around candidate public facilities.
-4. Deterministically evaluates all feasible facility combinations to maximize union heat-weighted demand coverage without double counting.
+4. Deterministically evaluates every eligible facility subset up to the `K` limit to maximize union heat-weighted demand coverage without double counting.
 5. Proves allocation value against two rigorous baselines: a **Static Baseline** (retaining the midday plan) and a **Naive Thermal Baseline** (selecting centers nearest the hottest hotspots without population weighting).
-6. Generates full one-for-one **Replacement Loss Evidence** explaining exactly why every selected facility outperforms each unselected alternative.
+6. Generates full one-for-one **Replacement Loss Evidence** quantifying the objective and population-coverage effect of each eligible substitution.
 
 ---
 
@@ -49,8 +49,9 @@ CoolAccess includes a fully validated, provenance-tracked empirical scenario for
 * **Thermal Evidence:** 5 diurnal FortyGuard street-level thermal snapshots evaluated across the internal 100m analysis grid on July 15, 2024 (`14:00`, `16:00`, `18:00`, `20:00`, `22:00` UTC).
 * **Candidate Facilities:** 6 public DC libraries and recreation centers from DC Open Data / OCTO under fixed budget $K = 3$.
 * **Empirical Finding:** As midday heat (`16:00 UTC`) transitions to late afternoon (`20:00 UTC`), optimal activation dynamically shifts from `{DC_089, DC_148, DC_166}` to `{DC_089, DC_135, DC_166}` (activating MLK Jr. Memorial Library `DC_135` over Northeast Library `DC_148`).
-* **Measured Gain:** The dynamic allocation delivers a **`+23.81%` gain** in covered heat-weighted demand over the static baseline at 750m proximity (**`+55.22%` gain** at 500m).
-* **Decision Robustness:** The selection change is identical under both Robust Fixed Anchors (1st–99th percentiles) and Pooled Empirical CDF normalization models.
+* **Measured Static-Baseline Gain at 20:00:** `8,328.93 - 6,734.48 = 1,594.45` additional heat-weighted demand units, or **`23.68%`**, at the locked 750m radius.
+* **Naive Baseline at 20:00:** The naive hottest-catchment baseline selects the same set and produces the same objective as the dynamic optimum, so the gain over naive is **zero** at this timestamp.
+* **Population Trade-off at 20:00:** Dynamic resident coverage is `38,357`, versus `41,876` for the retained 16:00 set: `3,519` fewer residents covered while the heat-weighted objective is higher.
 
 ---
 
@@ -77,13 +78,22 @@ CoolAccess includes a fully validated, provenance-tracked empirical scenario for
 |                              | Locked DC Benchmark  |  |
 |                              | (FortyGuard + Census)|  |
 |                              +----------------------+  |
+|                                         |              |
+|                              +----------v-----------+  |
+|                              | Evidence Claim Ledger|  |
+|                              +----------+-----------+  |
+|                                         |              |
+|                              +----------v-----------+  |
+|                              | Optional OpenRouter  |  |
+|                              | tool/claim organizer |  |
+|                              +----------------------+  |
 +--------------------------------------------------------+
 ```
 
 ### Deterministic Decision Authority vs. AI Augmentation
 
 * **Deterministic Decision Authority:** In municipal and emergency heat response, critical resource allocation decisions cannot be delegated to probabilistic or generative models. The CoolAccess combinatorial optimizer holds exclusive mathematical authority over all facility allocations, baseline evaluations, and replacement losses.
-* **Bounded AI Strategy:** Any future AI/LLM components (such as an Evidence Narrator or Operations Copilot) are architected strictly as read-only, evidence-grounded explanation layers. The AI layer translates structured replacement evidence and provenance records into natural-language briefs, with zero authority to alter numerical outputs, constraints, or facility selections.
+* **Bounded AI Strategy:** The current optional OpenRouter path classifies a supported question, proposes bounded read-only tools, and organizes authoritative claim IDs. A deterministic evidence planner resolves explicit entities, supplies mandatory evidence, validates timestamps and parameters, and enforces the final tool budget. Displayed factual prose is server-rendered from the active claim ledger; the model cannot write authoritative metrics or change the allocation.
 * **Fail-Closed Independence:** CoolAccess is completely self-contained and fully functional without an external LLM dependency or API key.
 
 ### AI Architecture Positioning
@@ -91,7 +101,8 @@ CoolAccess includes a fully validated, provenance-tracked empirical scenario for
 CoolAccess intentionally separates **decision authority** from **decision explanation**:
 
 * The deterministic combinatorial optimizer is the sole decision authority. It produces all facility selections, coverage metrics, baseline comparisons, and replacement evidence.
-* AI (LLM/Agent) components are architecturally positioned as an **optional, read-only explanation layer**. When present, they translate structured optimizer outputs into natural-language operational briefs — but they cannot modify, override, or influence any numerical result.
+* The optional LLM is a **read-only query-routing and evidence-organization layer**. It selects from closed tools and claim IDs. The server validates intent, explicit facility precedence, tool semantics, mandatory evidence, claim references, and requested highlights before rendering claim-ledger text.
+* Provider, schema, semantic, or grounding failure returns an intent-aware deterministic brief. Deterministic fallback is used only when authoritative scenario state exists. Mutation, medical/safety, regulatory, forecast, and live-weather requests return an explicit scope boundary.
 * This separation ensures that every allocation recommendation is fully reproducible, mathematically verifiable, and independent of any external AI service availability.
 
 ---
@@ -102,8 +113,8 @@ The single-page GIS application demonstrates the municipal decision workflow acr
 
 1. **Scenario Canvas:** View the Washington, DC bounding corridor (`14.61 km²`), all 6 eligible public facilities, and the fixed budget constraint ($K = 3$).
 2. **Midday Optimal Allocation (`16:00 UTC`):** Observe the midday thermal pattern and initial optimal facility subset (`{DC_089, DC_148, DC_166}`).
-3. **Diurnal Heat Shift (`20:00 UTC`):** Advance the timeline slider to late afternoon. The map and metrics update atomically, dynamically replacing `DC_148` with `DC_135` (MLK Jr. Memorial Library) as commercial canyon heat persists.
-4. **Baseline Proof Panel:** Directly compare the dynamic allocation against the **Static Baseline** (retaining midday facilities: **`+23.81%` gain**) and the **Naive Thermal Baseline**.
+3. **Diurnal Allocation Change (`20:00 UTC`):** Advance the timeline slider. Using the prepared 20:00 FortyGuard temperature state, the deterministic optimizer replaces `DC_148` with `DC_135` (MLK Jr. Memorial Library). CoolAccess does not assert an unmeasured physical cause.
+4. **Baseline Proof Panel:** Compare the dynamic allocation against the **Static Baseline** (retaining the 16:00 facilities: **`+1,594.45`, `+23.68%`**) and the **Naive Hottest-Catchment Baseline** (a tie at 20:00).
 5. **1-for-1 Replacement Drawer:** Open detailed replacement evidence explaining why `DC_135` outperforms `DC_148` and other unselected alternatives based on unique heat-weighted population coverage.
 
 ---
@@ -138,7 +149,7 @@ The Vite development server runs on `http://localhost:5173` and connects to the 
 
 ### Quality & Verification Commands
 ```powershell
-# Run full test suite (131 tests)
+# Run the full test suite (the current count is reported by pytest)
 python -m pytest
 
 # Code style and lint checks
@@ -152,13 +163,26 @@ python -m mypy src tests
 cd frontend && npm run build
 ```
 
+### Optional AI configuration
+
+The packaged runtime supports OpenRouter through generic HTTPS; no provider SDK is required. AI is disabled by default and the deterministic product remains usable without a key.
+
+```dotenv
+COOLACCESS_AI_ENABLED=false
+COOLACCESS_AI_PROVIDER=openrouter
+COOLACCESS_AI_MODEL=openrouter/free
+COOLACCESS_AI_API_KEY=
+```
+
+Do not expose the key to the frontend. Gemini is not a selectable packaged runtime provider because `google-genai` is not a project dependency.
+
 ---
 
 ## 6. Documentation
 
-- [Competition specification](docs/COOLACCESS_COMPETITION_SPEC_V1.md) - canonical product scope and Definition of Done
-- [Product and demo](docs/PRODUCT_AND_DEMO.md) - user journey, interface states, baselines, and 90-150 second demo script
-- [Technical architecture](docs/TECHNICAL_ARCHITECTURE.md) - boundaries, contracts, reliability, and deployment assumptions
+- [Competition specification](docs/COOLACCESS_COMPETITION_SPEC_V1.md) - archived pre-build scope; superseded details are labeled
+- [Product and demo](docs/PRODUCT_AND_DEMO.md) - archived planning journey; current metrics live in this README and the app
+- [Technical architecture](docs/TECHNICAL_ARCHITECTURE.md) - planning contracts plus a current-runtime clarification
 - [Optimization model](docs/OPTIMIZATION_MODEL.md) - thermal demand, maximum coverage formulation, baselines, and evidence
 - [Data and city selection](docs/DATA_AND_CITY_SELECTION.md) - city gate, source candidates, licensing, and scenario materiality
 - [Build plan](docs/BUILD_PLAN.md) - dependency-ordered implementation plan
@@ -195,6 +219,6 @@ Verified operating hours may strengthen the scenario but are not required. Witho
 
 ## 9. Confirmed Competition Context
 
-FortyGuard provides 2-meter street-level ambient air temperature; real and near-real-time data; history from January 1, 2021; approximately 20-meter resolution; hour-by-hour data; forecasts up to 12 hours; and U.S.-only hackathon coverage. External datasets are allowed when their licenses are respected and FortyGuard remains central.
+The organizer describes broader FortyGuard live, historical, and forecast capabilities. This submission uses a prepared historical July 15, 2024 benchmark transformed to an internal 100m analysis grid. CoolAccess does not present that benchmark as live weather or a forecast.
 
 The judging rubric is Impact & Relevance 40%, Technical Execution 35%, Innovation 15%, and Communication 10%. Confirmed submission requirements include a public GitHub repository, a live website/demo link, and adding `fortyguard` as a repository collaborator. The participant retains project ownership and FortyGuard receives a license to showcase it.

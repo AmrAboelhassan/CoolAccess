@@ -22,6 +22,7 @@ import copy
 import hashlib
 import json
 import logging
+import re
 from collections.abc import Sequence
 from enum import StrEnum
 from typing import Annotated, Any, Protocol
@@ -75,39 +76,32 @@ FALLBACK_REASON_ANSWER_PLAN_UNGROUNDED = (
     "Model answer plan failed request-local grounding validation."
 )
 
-UNSUPPORTED_KEYWORDS: tuple[str, ...] = (
-    "medical",
-    "doctor",
-    "health advice",
-    "symptom",
-    "symptoms",
-    "treatment",
-    "treatments",
-    "heat stroke",
-    "heat exhaustion",
-    "diagnosis",
-    "clinical",
-    "first aid",
-    "weather forecast",
-    "forecast",
-    "tomorrow",
-    "next week",
-    "radar",
-    "live weather",
-    "mutate",
-    "change k",
-    "modify k",
-    "update budget",
-    "set k",
-    "k=",
-    "k =",
-    "add facility",
-    "delete facility",
-    "new facility",
-    "remove facility",
-    "override",
-    "optimizer constraint",
-    "constraints",
+_UNSUPPORTED_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
+    re.compile(pattern, re.IGNORECASE)
+    for pattern in (
+        # Medical, physiological-safety, and outcome-guarantee requests.
+        r"\b(?:medical|clinical|doctor|diagnos(?:is|e)|symptoms?|treatments?|first aid)\b",
+        r"\b(?:heat[ -]?stroke|heat exhaustion)\b",
+        r"\b(?:is|are|will|would|guarantee)\b.{0,50}\b(?:safe|safety|protected)\b",
+        r"\b(?:safe|safety)\b.{0,50}\b(?:worker|resident|public|people|person)\b",
+        # Regulatory determinations.
+        r"\b(?:osha|regulatory|regulation|legally compliant|complies? with)\b",
+        # Forecast and live/current-weather requests. Analytical uses of "right now"
+        # remain in scope unless they explicitly ask for current weather/temperature.
+        r"\b(?:forecast|tomorrow|next week|future weather|live radar|live weather)\b",
+        r"\b(?:weather|temperature|temperatures)\b.{0,35}\b(?:right now|currently|live)\b",
+        r"\b(?:right now|currently|live)\b.{0,35}\b(?:weather|temperature|temperatures)\b",
+        # Commands that would mutate or deploy an authoritative allocation/constraint.
+        r"\b(?:override|mutate)\b.{0,40}\b(?:optimizer|allocation|constraint|budget|k)\b",
+        r"\b(?:change|set|modify|update)\s+(?:the\s+)?(?:k|budget|allocation|constraint)\b",
+        (
+            r"\b(?:activate|deactivate|open|close|add|remove|delete)\b.{0,60}"
+            r"\b(?:facility|dc[_ -]?\d{3}|library|center)\b.{0,20}"
+            r"\b(?:now|today|immediately)\b"
+        ),
+        r"\b(?:deploy|apply|implement)\b.{0,30}\b(?:allocation|plan|change)\b",
+        r"\b(?:add|remove|delete)\s+(?:a\s+|the\s+)?(?:new\s+)?facility\b",
+    )
 )
 
 
@@ -153,6 +147,10 @@ class ToolSelectionValidationIssue(StrEnum):
     UNKNOWN_TOOL = "unknown_tool"
     REPLACEMENT_MISSING_TOOL = "replacement_missing_tool"
     VULNERABILITY_MISSING_FACILITY = "vulnerability_missing_facility"
+    INTENT_MISMATCH = "intent_mismatch"
+    EXPLICIT_ENTITY_CONFLICT = "explicit_entity_conflict"
+    INVALID_REPLACEMENT_DIRECTION = "invalid_replacement_direction"
+    MISSING_MANDATORY_EVIDENCE = "missing_mandatory_evidence"
 
 
 # -----------------------------------------------------------------------------
@@ -205,6 +203,9 @@ class GatewayClassificationContext(BaseModel):
     supported_tools: tuple[ToolName, ...]
     available_facility_ids: tuple[str, ...]
     available_timestamps: tuple[str, ...]
+    selected_facility_ids: tuple[str, ...] = ()
+    radius_meters: int = 750
+    k: int = 3
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
@@ -220,6 +221,8 @@ class GatewayPlanContext(BaseModel):
     current_timestamp: str
     available_claim_ids: tuple[str, ...]
     available_facility_ids: tuple[str, ...]
+    radius_meters: int = 750
+    k: int = 3
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
@@ -249,8 +252,8 @@ class HeatBriefRequest(BaseModel):
     question: Annotated[str, Field(min_length=1, max_length=300)]
     timestamp: str = "16:00"
     baseline_timestamp: str = "16:00"
-    radius_meters: int = 750
-    k: int = 3
+    radius_meters: Annotated[int, Field(ge=100, le=5000)] = 750
+    k: Annotated[int, Field(ge=1, le=6)] = 3
     model_config = ConfigDict(extra="forbid")
 
     @field_validator("question", mode="before")
@@ -266,6 +269,9 @@ class HeatBriefResponse(BaseModel):
     intent_code: IntentCode | None = None
     scenario_id: str
     plan_fingerprint: str
+    timestamp: str
+    radius_meters: int
+    k: int
     title: str
     brief_items: list[BriefItem]
     tools_used: list[str]
@@ -282,8 +288,7 @@ class HeatBriefResponse(BaseModel):
 
 def is_unsupported_question(question: str) -> bool:
     """Detect if a question is out of scope for municipal cooling optimization."""
-    q_lower = question.lower()
-    return any(kw in q_lower for kw in UNSUPPORTED_KEYWORDS)
+    return any(pattern.search(question) is not None for pattern in _UNSUPPORTED_PATTERNS)
 
 
 def infer_intent_from_question(question: str) -> IntentCode:
@@ -320,6 +325,9 @@ def infer_intent_from_question(question: str) -> IntentCode:
             "trade-off",
             "trade off",
             "rejected",
+            "not selected",
+            "wasn't selected",
+            "was not selected",
             "instead of",
             "over dc_",
             "swap",
@@ -518,16 +526,54 @@ class FakeModelGateway:
 
         inferred = infer_intent_from_question(context.question)
         avail = context.available_facility_ids or VALID_FACILITY_IDS
-        fac1 = avail[0] if avail else "DC_135"
-        fac2 = avail[1] if len(avail) > 1 else "DC_148"
-
-        # Resolve explicit facility if mentioned
+        selected = set(context.selected_facility_ids)
+        unselected = [fid for fid in avail if fid not in selected]
+        normalized_question = re.sub(
+            r"[^a-z0-9]+", " ", context.question.casefold()
+        ).strip()
+        alias_map = {
+            "DC_089": ("dc 089", "dc089", "shaw", "watha"),
+            "DC_135": ("dc 135", "dc135", "mlk", "martin luther king"),
+            "DC_148": ("dc 148", "dc148", "northeast"),
+            "DC_159": ("dc 159", "dc159", "southeast"),
+            "DC_166": ("dc 166", "dc166", "randall"),
+            "DC_168": ("dc 168", "dc168", "southwest"),
+        }
+        explicit: list[tuple[int, str]] = []
+        padded_question = f" {normalized_question} "
         for fid in avail:
-            if fid.lower() in context.question.lower() or fid.split("_")[-1] in context.question:
-                fac1 = fid
-                break
+            positions = [
+                padded_question.find(f" {alias} ")
+                for alias in alias_map.get(fid, ())
+                if padded_question.find(f" {alias} ") >= 0
+            ]
+            if positions:
+                explicit.append((min(positions), fid))
+        explicit_fids = [fid for _, fid in sorted(explicit)]
+
+        fac1 = explicit_fids[0] if explicit_fids else (avail[0] if avail else "DC_135")
+        fac2 = (
+            explicit_fids[1]
+            if len(explicit_fids) > 1
+            else (avail[1] if len(avail) > 1 else "DC_148")
+        )
 
         if inferred == IntentCode.REPLACEMENT_RATIONALE:
+            if len(explicit_fids) >= 2:
+                pair_selected = [fid for fid in explicit_fids[:2] if fid in selected]
+                pair_unselected = [fid for fid in explicit_fids[:2] if fid not in selected]
+                if len(pair_selected) == 1 and len(pair_unselected) == 1:
+                    fac1, fac2 = pair_selected[0], pair_unselected[0]
+            elif explicit_fids and selected:
+                if explicit_fids[0] in selected:
+                    fac1 = explicit_fids[0]
+                    fac2 = unselected[0]
+                else:
+                    fac1 = next(iter(context.selected_facility_ids))
+                    fac2 = explicit_fids[0]
+            elif selected and unselected:
+                fac1 = next(iter(context.selected_facility_ids))
+                fac2 = unselected[0]
             return GatewayToolSelection(
                 intent_code=IntentCode.REPLACEMENT_RATIONALE,
                 tool_calls=(
@@ -642,6 +688,7 @@ class FakeModelGateway:
 def _tool_get_allocation_plan(
     analysis: AllocationAnalysisResult,
     scenario: ScenarioBundle,
+    radius_meters: int = 750,
 ) -> tuple[ClaimRecord, ...]:
     """Pure read-only projection: Return optimal facility selection, demand, and population."""
     opt = analysis.optimized
@@ -653,6 +700,7 @@ def _tool_get_allocation_plan(
     tot_pop = int(cov.total_population)
     pct_val = analysis.optimized_coverage_percentage.value
     cov_pct = float(pct_val) if pct_val is not None else 0.0
+    allocation_timestamp = format_timestamp_display(opt.state_id.replace("state_dc_", ""))
 
     claims: list[ClaimRecord] = []
 
@@ -666,16 +714,20 @@ def _tool_get_allocation_plan(
         ClaimRecord(
             claim_id="claim:alloc:summary",
             claim_type="allocation_summary",
+            timestamp=allocation_timestamp,
             value={
                 "k": k,
                 "selected_ids": list(sel_ids),
                 "covered_heat_weighted_demand": cov_demand,
                 "covered_population": cov_pop,
                 "coverage_percentage": cov_pct,
+                "radius_meters": radius_meters,
             },
             display_text=(
-                f"The authoritative CoolAccess optimizer selected {len(sel_ids)} optimal "
-                f"facilities ({fac_list_str}) under resource budget k={k}, "
+                f"At {allocation_timestamp} UTC, the authoritative CoolAccess optimizer "
+                f"selected {len(sel_ids)} optimal "
+                f"facilities ({fac_list_str}) under facility-count budget k={k} and a "
+                f"{radius_meters} m catchment radius, "
                 f"covering {cov_demand:.2f} heat-weighted demand units "
                 f"({cov_pct:.1f}% of total demand) and {cov_pop:,} residential population "
                 f"({(cov_pop / tot_pop * 100.0) if tot_pop > 0 else 0.0:.1f}% of AOI population)."
@@ -713,6 +765,7 @@ def _tool_get_allocation_plan(
         ClaimRecord(
             claim_id="claim:alloc:tie_break",
             claim_type="tie_break_audit",
+            timestamp=allocation_timestamp,
             value={
                 "decisive_criterion": tb.decisive_criterion.value,
                 "evaluated_combinations": tb.evaluated_combination_count,
@@ -767,12 +820,32 @@ def _tool_get_diurnal_heat_transition(
         ", ".join(f"{n} ({i})" for n, i in zip(removed_names, removed, strict=False)) or "none"
     )
 
-    shift_desc = (
-        f"Between {from_fmt} UTC and {to_fmt} UTC, the optimal facility allocation shifts under "
-        f"resource budget k={k}: activated {len(added)} facility ({added_str}), "
-        f"deactivated {len(removed)} facility ({removed_str}), "
-        f"and retained {len(retained)} facilities ({', '.join(retained_names)})."
-    )
+    if added or removed:
+        shift_desc = (
+            f"Between {from_fmt} UTC and {to_fmt} UTC, the authoritative optimal allocation "
+            f"changed under the same k={k} facility-count budget and {radius_meters} m radius: "
+            f"added {added_str}, removed {removed_str}, and retained "
+            f"{', '.join(retained_names)}."
+        )
+        context_text = (
+            f"Using the prepared FortyGuard thermal state at {to_fmt} UTC, the deterministic "
+            f"optimizer returned a different facility set than at {from_fmt} UTC. The exact "
+            "added and removed facilities are listed in the transition evidence."
+        )
+    else:
+        retained_str = ", ".join(
+            f"{name_map.get(fid, fid)} ({fid})" for fid in sorted(retained)
+        )
+        shift_desc = (
+            f"Between {from_fmt} UTC and {to_fmt} UTC, the authoritative optimal allocation "
+            f"remained unchanged under the same k={k} facility-count budget and "
+            f"{radius_meters} m radius: {retained_str}."
+        )
+        context_text = (
+            f"The prepared FortyGuard thermal inputs differ between {from_fmt} UTC and "
+            f"{to_fmt} UTC, but recomputing the deterministic objective returned the same "
+            "selected facility set. Temperature change alone does not imply an allocation change."
+        )
 
     from_key = sanitize_timestamp_key(from_ts)
     to_key = sanitize_timestamp_key(to_ts)
@@ -788,6 +861,9 @@ def _tool_get_diurnal_heat_transition(
                 "added": added,
                 "removed": removed,
                 "retained": retained,
+                "allocation_changed": bool(added or removed),
+                "radius_meters": radius_meters,
+                "k": k,
             },
             display_text=shift_desc,
         )
@@ -799,13 +875,9 @@ def _tool_get_diurnal_heat_transition(
             claim_type="thermal_shift_context",
             timestamp=to_ts,
             value={
-                "note": "Changed thermal inputs alter optimizer heat-weighted priorities."
+                "allocation_changed": bool(added or removed),
             },
-            display_text=(
-                f"Between {from_fmt} and {to_fmt} UTC, changed FortyGuard thermal inputs "
-                f"alter the optimizer's heat-weighted priorities, resulting in a different "
-                f"optimal allocation under the same k={k} constraint."
-            ),
+            display_text=context_text,
         )
     )
 
@@ -875,6 +947,7 @@ def _tool_get_heat_vulnerability_profile(
     analysis: AllocationAnalysisResult,
     scenario: ScenarioBundle,
     timestamp: str = "16:00",
+    radius_meters: int = 750,
 ) -> tuple[ClaimRecord, ...]:
     """Pure read-only projection: Return thermal priority and residential population context."""
     name_map = scenario.get_facility_name_map()
@@ -900,7 +973,11 @@ def _tool_get_heat_vulnerability_profile(
         demand = float(pfc.direct_heat_weighted_demand)
         block_count = len(pfc.direct_cell_ids)
     else:
-        req = scenario.build_allocation_request(timestamp=timestamp)
+        req = scenario.build_allocation_request(
+            timestamp=timestamp,
+            radius_meters=radius_meters,
+            k=opt.k,
+        )
         accessible_cells = {
             edge.cell_id
             for edge in req.accessibility_relationships
@@ -935,11 +1012,12 @@ def _tool_get_heat_vulnerability_profile(
                 "heat_weighted_demand": demand,
                 "mean_thermal_priority": mean_thermal,
                 "is_selected": is_selected,
+                "radius_meters": radius_meters,
             },
             display_text=(
                 f"Facility '{fname}' ({facility_id}"
                 f"{f', {faddress}' if faddress else ''}) is {status_str}: "
-                f"serves a catchment of {pop:,} residential population across "
+                f"has {pop:,} residents within its {radius_meters} m catchment across "
                 f"{block_count} census blocks, generating {demand:.2f} heat-weighted "
                 f"demand units with mean normalized thermal priority weight {mean_thermal:.3f}."
             ),
@@ -968,6 +1046,7 @@ def _tool_get_replacement_evidence(
     alternative_id: str,
     analysis: AllocationAnalysisResult,
     scenario: ScenarioBundle,
+    radius_meters: int = 750,
 ) -> tuple[ClaimRecord, ...]:
     """Pure read-only projection: Return primary objective loss and population trade-off."""
     rep = next(
@@ -993,20 +1072,43 @@ def _tool_get_replacement_evidence(
             and alternative_id not in opt.selected_facility_ids
         ):
             ts_val = opt.state_id.replace("state_dc_", "")
-            req = scenario.build_allocation_request(timestamp=ts_val, k=opt.k)
+            req = scenario.build_allocation_request(
+                timestamp=ts_val,
+                radius_meters=radius_meters,
+                k=opt.k,
+            )
             rep = build_replacement_evidence(req, opt, selected_id, alternative_id)
 
     if not rep:
+        selected_set = set(analysis.optimized.selected_facility_ids)
+        if selected_id in selected_set and alternative_id in selected_set:
+            pair_text = (
+                f"'{sel_name}' ({selected_id}) and '{alt_name}' ({alternative_id}) are both "
+                "selected in the authoritative allocation at this timestamp, so neither "
+                "replaced the other and no one-for-one replacement loss applies."
+            )
+            pair_status = "both_selected"
+        elif selected_id not in selected_set and alternative_id not in selected_set:
+            pair_text = (
+                f"'{sel_name}' ({selected_id}) and '{alt_name}' ({alternative_id}) are both "
+                "unselected in the authoritative allocation at this timestamp, so they do "
+                "not form a selected-versus-alternative replacement pair."
+            )
+            pair_status = "both_unselected"
+        else:
+            pair_text = (
+                f"No authoritative replacement record exists for selected '{selected_id}' "
+                f"and alternative '{alternative_id}' at this timestamp."
+            )
+            pair_status = "invalid_direction"
         return (
             ClaimRecord(
-                claim_id=f"claim:rep:{selected_id}:{alternative_id}:not_found",
-                claim_type="replacement_not_found",
+                claim_id=f"claim:rep:{selected_id}:{alternative_id}:pair_context",
+                claim_type="replacement_pair_context",
                 facility_id=selected_id,
                 alternative_id=alternative_id,
-                display_text=(
-                    f"No replacement record found for selected '{selected_id}' "
-                    f"and alternative '{alternative_id}'."
-                ),
+                value={"pair_status": pair_status},
+                display_text=pair_text,
             ),
         )
 
@@ -1026,6 +1128,7 @@ def _tool_get_replacement_evidence(
                 "primary_objective_loss": loss,
                 "population_delta": pop_delta,
                 "reason_code": reason,
+                "radius_meters": radius_meters,
             },
             display_text=(
                 f"Replacing selected '{sel_name}' ({selected_id}) with alternative '{alt_name}' "
@@ -1045,7 +1148,7 @@ def _tool_get_replacement_evidence(
     elif pop_delta < 0:
         pop_tradeoff_text = (
             f"Alternative '{alt_name}' ({alternative_id}) covers {abs(pop_delta):,} fewer "
-            f"residential population while also providing lower total "
+            f"residents while also providing lower total "
             f"heat-weighted demand coverage."
         )
     else:
@@ -1085,6 +1188,25 @@ def _tool_get_baseline_comparison(
             s_gain = cov_demand - s_obj
             s_pct = (s_gain / s_obj * 100.0) if s_obj > 0 else 0.0
 
+            if abs(s_gain) < 0.005:
+                static_text = (
+                    f"The dynamic allocation matches the static baseline at "
+                    f"{cov_demand:.2f} heat-weighted demand units under the same "
+                    f"facility-count budget; there is no objective gain at this timestamp."
+                )
+            elif s_gain > 0:
+                static_text = (
+                    f"The dynamic allocation covers {s_gain:.2f} more heat-weighted demand "
+                    f"units than the static baseline ({s_pct:.2f}% gain) under the same "
+                    "facility-count budget."
+                )
+            else:
+                static_text = (
+                    f"The dynamic allocation covers {abs(s_gain):.2f} fewer heat-weighted "
+                    f"demand units than the static baseline ({abs(s_pct):.2f}% lower) under "
+                    "the same facility-count budget."
+                )
+
             claims.append(
                 ClaimRecord(
                     claim_id="claim:base:static:gain",
@@ -1094,13 +1216,10 @@ def _tool_get_baseline_comparison(
                         "optimized_objective": cov_demand,
                         "absolute_gain": s_gain,
                         "percentage_gain": s_pct,
+                        "baseline_selected_ids": list(static_res.selected_facility_ids),
+                        "optimized_selected_ids": list(opt.selected_facility_ids),
                     },
-                    display_text=(
-                        f"Dynamic allocation outperforms the static baseline by "
-                        f"+{s_gain:.2f} heat-weighted demand units (+{s_pct:.1f}% improvement), "
-                        f"adapting to updated FortyGuard thermal priorities under the same "
-                        f"resource budget."
-                    ),
+                    display_text=static_text,
                 )
             )
 
@@ -1111,6 +1230,26 @@ def _tool_get_baseline_comparison(
             n_gain = cov_demand - n_obj
             n_pct = (n_gain / n_obj * 100.0) if n_obj > 0 else 0.0
 
+            if abs(n_gain) < 0.005:
+                naive_text = (
+                    f"The dynamic optimum matches the naive hottest-catchment baseline: both "
+                    f"select {', '.join(opt.selected_facility_ids)} and produce the same "
+                    f"{cov_demand:.2f} heat-weighted demand objective. There is no gain over "
+                    "the naive baseline at this timestamp."
+                )
+            elif n_gain > 0:
+                naive_text = (
+                    f"The dynamic optimum covers {n_gain:.2f} more heat-weighted demand units "
+                    f"than the naive hottest-catchment baseline ({n_pct:.2f}% gain) under the "
+                    "same facility-count budget."
+                )
+            else:
+                naive_text = (
+                    f"The dynamic optimum covers {abs(n_gain):.2f} fewer heat-weighted demand "
+                    f"units than the naive hottest-catchment baseline ({abs(n_pct):.2f}% lower) "
+                    "under the same facility-count budget."
+                )
+
             claims.append(
                 ClaimRecord(
                     claim_id="claim:base:naive:gain",
@@ -1120,13 +1259,10 @@ def _tool_get_baseline_comparison(
                         "optimized_objective": cov_demand,
                         "absolute_gain": n_gain,
                         "percentage_gain": n_pct,
+                        "baseline_selected_ids": list(naive_res.selected_facility_ids),
+                        "optimized_selected_ids": list(opt.selected_facility_ids),
                     },
-                    display_text=(
-                        f"Dynamic allocation outperforms the naive thermal-only baseline by "
-                        f"+{n_gain:.2f} heat-weighted demand units (+{n_pct:.1f}% improvement), "
-                        f"optimizing combined census population distribution and thermal weights "
-                        f"rather than raw point temperatures alone."
-                    ),
+                    display_text=naive_text,
                 )
             )
 
@@ -1147,7 +1283,7 @@ def execute_tool(
     valid_timestamps = set(scenario.get_timestamps())
 
     if call.tool_name == ToolName.GET_ALLOCATION_PLAN:
-        claims = _tool_get_allocation_plan(analysis, scenario)
+        claims = _tool_get_allocation_plan(analysis, scenario, radius_meters=radius_meters)
         return ToolExecutionResult(tool_name=call.tool_name, claims=claims)
 
     if call.tool_name == ToolName.GET_DIURNAL_HEAT_TRANSITION:
@@ -1193,6 +1329,7 @@ def execute_tool(
             analysis=analysis,
             scenario=scenario,
             timestamp=timestamp,
+            radius_meters=radius_meters,
         )
         return ToolExecutionResult(
             tool_name=call.tool_name,
@@ -1216,6 +1353,7 @@ def execute_tool(
             alternative_id=alt_id,
             analysis=analysis,
             scenario=scenario,
+            radius_meters=radius_meters,
         )
         return ToolExecutionResult(
             tool_name=call.tool_name,
@@ -1255,68 +1393,72 @@ def plan_deterministic_evidence(
     baseline_timestamp: str,
     max_budget: int = MAX_TOOL_CALLS,
 ) -> tuple[ToolCall, ...]:
-    """Deterministically plan required evidence according to intent minimum contracts."""
+    """Build a bounded authoritative evidence plan.
+
+    Explicit facilities in the user's text are deterministic and take priority.
+    Model suggestions may fill missing entities or add optional evidence only.
+    """
+    if max_budget < 1:
+        return ()
+
     valid_fids = scenario.get_facility_ids()
+    valid_fid_set = set(valid_fids)
     selected_fids = list(analysis.optimized.selected_facility_ids)
-    unselected_fids = [fid for fid in valid_fids if fid not in selected_fids]
+    selected_set = set(selected_fids)
+    unselected_fids = [fid for fid in valid_fids if fid not in selected_set]
+    explicit_fids = [
+        fid for fid in scenario.resolve_facilities(question) if fid in valid_fid_set
+    ]
 
-    q_lower = question.lower()
-    mentioned_fids: list[str] = []
-
-    resolved_fac = scenario.resolve_facility(question)
-    if resolved_fac and resolved_fac in valid_fids:
-        mentioned_fids.append(resolved_fac)
-
-    for fid in valid_fids:
-        if fid not in mentioned_fids:
-            fid_clean = fid.lower()
-            if (
-                fid_clean in q_lower
-                or fid_clean.replace("_", "") in q_lower
-                or fid_clean.replace("_", "-") in q_lower
-            ):
-                mentioned_fids.append(fid)
-
+    suggested_fids: list[str] = []
     for call in suggested_calls:
-        if (
-            call.facility_id
-            and call.facility_id in valid_fids
-            and call.facility_id not in mentioned_fids
-        ):
-            mentioned_fids.append(call.facility_id)
-        if (
-            call.alternative_id
-            and call.alternative_id in valid_fids
-            and call.alternative_id not in mentioned_fids
-        ):
-            mentioned_fids.append(call.alternative_id)
+        for fid in (call.facility_id, call.alternative_id):
+            if fid and fid in valid_fid_set and fid not in suggested_fids:
+                suggested_fids.append(fid)
+    mentioned_fids = [*explicit_fids]
+    for fid in suggested_fids:
+        if fid not in mentioned_fids:
+            mentioned_fids.append(fid)
 
+    q_lower = question.casefold()
+    available_timestamps = scenario.get_timestamps()
     target_ts = timestamp
-    for ts in scenario.get_timestamps():
-        clean_ts = ts.replace(":", "")
-        hour_int = int(clean_ts[:2])
+    explicit_time = False
+    time_mentions: list[tuple[int, str]] = []
+    for ts in available_timestamps:
+        hour_int = int(ts[:2])
         twelve_hour = hour_int % 12 or 12
-        hour_labels = [
+        labels = (
             ts,
-            clean_ts,
+            ts.replace(":", ""),
             f"{twelve_hour}pm" if hour_int >= 12 else f"{twelve_hour}am",
             f"{twelve_hour} pm" if hour_int >= 12 else f"{twelve_hour} am",
-            f"{hour_int}pm" if hour_int >= 12 else f"{hour_int}am",
+        )
+        positions = [
+            match.start()
+            for label in labels
+            if (match := re.search(rf"(?<!\d){re.escape(label)}(?!\d)", q_lower))
         ]
-        if any(lbl in q_lower for lbl in hour_labels):
-            target_ts = ts
-            break
-
-    for call in suggested_calls:
-        if call.target_timestamp and call.target_timestamp in scenario.get_timestamps():
-            target_ts = call.target_timestamp
-            break
-
+        if positions:
+            time_mentions.append((min(positions), ts))
+    if time_mentions:
+        target_ts = max(time_mentions)[1]
+        explicit_time = True
+    if not explicit_time:
+        target_ts = next(
+            (
+                call.target_timestamp
+                for call in suggested_calls
+                if call.target_timestamp in available_timestamps
+            ),
+            target_ts,
+        )
     if (
         target_ts == baseline_timestamp
         and baseline_timestamp == "16:00"
         and intent_code == IntentCode.DIURNAL_HEAT_TRANSITION
-        and "20:00" in scenario.get_timestamps()
+        and not explicit_time
+        and "20:00" in available_timestamps
     ):
         target_ts = "20:00"
 
@@ -1324,36 +1466,30 @@ def plan_deterministic_evidence(
 
     if intent_code == IntentCode.ALLOCATION_SUMMARY:
         planned.append(ToolCall(tool_name=ToolName.GET_ALLOCATION_PLAN))
-        if mentioned_fids and len(planned) < max_budget:
+        target_fid = next(iter(mentioned_fids), next(iter(selected_fids), None))
+        if target_fid:
             planned.append(
                 ToolCall(
                     tool_name=ToolName.GET_HEAT_VULNERABILITY_PROFILE,
-                    facility_id=mentioned_fids[0],
-                )
-            )
-        elif selected_fids and len(planned) < max_budget:
-            planned.append(
-                ToolCall(
-                    tool_name=ToolName.GET_HEAT_VULNERABILITY_PROFILE,
-                    facility_id=selected_fids[0],
+                    facility_id=target_fid,
                 )
             )
 
     elif intent_code == IntentCode.DIURNAL_HEAT_TRANSITION:
-        planned.append(
-            ToolCall(
-                tool_name=ToolName.GET_DIURNAL_HEAT_TRANSITION,
-                target_timestamp=target_ts,
+        planned.extend(
+            (
+                ToolCall(
+                    tool_name=ToolName.GET_DIURNAL_HEAT_TRANSITION,
+                    target_timestamp=target_ts,
+                ),
+                ToolCall(
+                    tool_name=ToolName.GET_DIURNAL_THERMAL_PROFILE,
+                    target_timestamp=target_ts,
+                ),
+                ToolCall(tool_name=ToolName.GET_ALLOCATION_PLAN),
             )
         )
-        planned.append(
-            ToolCall(
-                tool_name=ToolName.GET_DIURNAL_THERMAL_PROFILE,
-                target_timestamp=target_ts,
-            )
-        )
-        planned.append(ToolCall(tool_name=ToolName.GET_ALLOCATION_PLAN))
-        if mentioned_fids and len(planned) < max_budget:
+        if mentioned_fids:
             planned.append(
                 ToolCall(
                     tool_name=ToolName.GET_HEAT_VULNERABILITY_PROFILE,
@@ -1362,26 +1498,16 @@ def plan_deterministic_evidence(
             )
 
     elif intent_code == IntentCode.HEAT_VULNERABILITY_EXPLANATION:
-        target_fid = (
-            mentioned_fids[0]
-            if mentioned_fids
-            else (selected_fids[0] if selected_fids else valid_fids[0])
-        )
-        planned.append(
-            ToolCall(
-                tool_name=ToolName.GET_HEAT_VULNERABILITY_PROFILE,
-                facility_id=target_fid,
-            )
-        )
-        planned.append(ToolCall(tool_name=ToolName.GET_ALLOCATION_PLAN))
-        if len(mentioned_fids) > 1 and len(planned) < max_budget:
+        target_fids = mentioned_fids[:2] or selected_fids[:1]
+        for fid in target_fids:
             planned.append(
                 ToolCall(
                     tool_name=ToolName.GET_HEAT_VULNERABILITY_PROFILE,
-                    facility_id=mentioned_fids[1],
+                    facility_id=fid,
                 )
             )
-        elif len(planned) < max_budget:
+        planned.append(ToolCall(tool_name=ToolName.GET_ALLOCATION_PLAN))
+        if len(target_fids) == 1:
             planned.append(
                 ToolCall(
                     tool_name=ToolName.GET_DIURNAL_THERMAL_PROFILE,
@@ -1390,87 +1516,116 @@ def plan_deterministic_evidence(
             )
 
     elif intent_code == IntentCode.REPLACEMENT_RATIONALE:
-        sel_candidate = next((fid for fid in mentioned_fids if fid in selected_fids), None)
-        alt_candidate = next((fid for fid in mentioned_fids if fid in unselected_fids), None)
-
-        if not sel_candidate and selected_fids:
-            sel_candidate = selected_fids[0]
-        if not alt_candidate and unselected_fids:
-            alt_candidate = unselected_fids[0]
-
-        if not sel_candidate:
-            sel_candidate = valid_fids[0]
-        if not alt_candidate or alt_candidate == sel_candidate:
-            alt_candidate = next(
-                (fid for fid in valid_fids if fid != sel_candidate),
-                valid_fids[1] if len(valid_fids) > 1 else valid_fids[0],
+        sel_candidate: str | None
+        alt_candidate: str | None
+        if len(explicit_fids) >= 2:
+            explicit_selected = [fid for fid in explicit_fids[:2] if fid in selected_set]
+            explicit_unselected = [fid for fid in explicit_fids[:2] if fid not in selected_set]
+            if len(explicit_selected) == 1 and len(explicit_unselected) == 1:
+                sel_candidate = explicit_selected[0]
+                alt_candidate = explicit_unselected[0]
+            else:
+                # A false pairwise premise (both selected or both unselected) is preserved so
+                # the evidence tool can state that no replacement relationship exists.
+                sel_candidate, alt_candidate = explicit_fids[:2]
+        else:
+            explicit_fid = explicit_fids[0] if explicit_fids else None
+            sel_candidate = explicit_fid if explicit_fid in selected_set else None
+            alt_candidate = (
+                explicit_fid
+                if explicit_fid and explicit_fid not in selected_set
+                else None
             )
 
-        planned.append(
-            ToolCall(
-                tool_name=ToolName.GET_REPLACEMENT_EVIDENCE,
-                facility_id=sel_candidate,
-                alternative_id=alt_candidate,
+            transition = scenario.metadata.get("primary_transition", {})
+            transition_selected = transition.get("activated_facility")
+            transition_unselected = transition.get("replaced_facility")
+            if (
+                alt_candidate == transition_unselected
+                and transition_selected in selected_set
+            ):
+                sel_candidate = transition_selected
+            elif (
+                alt_candidate == transition_selected
+                and transition_unselected in selected_set
+            ):
+                sel_candidate = transition_unselected
+            elif (
+                sel_candidate == transition_selected
+                and transition_unselected in unselected_fids
+            ):
+                alt_candidate = transition_unselected
+            elif (
+                sel_candidate == transition_unselected
+                and transition_selected in unselected_fids
+            ):
+                alt_candidate = transition_selected
+
+            if sel_candidate is None:
+                sel_candidate = next(
+                    (fid for fid in suggested_fids if fid in selected_set),
+                    selected_fids[0],
+                )
+            if alt_candidate is None:
+                alt_candidate = next(
+                    (fid for fid in suggested_fids if fid in unselected_fids),
+                    unselected_fids[0],
+                )
+
+        planned.extend(
+            (
+                ToolCall(
+                    tool_name=ToolName.GET_REPLACEMENT_EVIDENCE,
+                    facility_id=sel_candidate,
+                    alternative_id=alt_candidate,
+                ),
+                ToolCall(
+                    tool_name=ToolName.GET_HEAT_VULNERABILITY_PROFILE,
+                    facility_id=sel_candidate,
+                ),
+                ToolCall(
+                    tool_name=ToolName.GET_HEAT_VULNERABILITY_PROFILE,
+                    facility_id=alt_candidate,
+                ),
+                ToolCall(tool_name=ToolName.GET_ALLOCATION_PLAN),
             )
         )
-        planned.append(
-            ToolCall(
-                tool_name=ToolName.GET_HEAT_VULNERABILITY_PROFILE,
-                facility_id=sel_candidate,
-            )
-        )
-        planned.append(
-            ToolCall(
-                tool_name=ToolName.GET_HEAT_VULNERABILITY_PROFILE,
-                facility_id=alt_candidate,
-            )
-        )
-        planned.append(ToolCall(tool_name=ToolName.GET_ALLOCATION_PLAN))
 
     elif intent_code == IntentCode.BASELINE_COMPARISON:
-        btype = "all"
-        for call in suggested_calls:
-            if call.tool_name == ToolName.GET_BASELINE_COMPARISON and call.baseline_type:
-                btype = call.baseline_type
-                break
-        planned.append(
-            ToolCall(tool_name=ToolName.GET_BASELINE_COMPARISON, baseline_type=btype)
+        baseline_type = next(
+            (
+                call.baseline_type
+                for call in suggested_calls
+                if call.tool_name == ToolName.GET_BASELINE_COMPARISON
+                and call.baseline_type
+                in {"static", "static_allocation", "naive", "naive_thermal", "all"}
+            ),
+            "all",
         )
-        planned.append(ToolCall(tool_name=ToolName.GET_ALLOCATION_PLAN))
-        if len(planned) < max_budget:
-            planned.append(
+        planned.extend(
+            (
+                ToolCall(
+                    tool_name=ToolName.GET_BASELINE_COMPARISON,
+                    baseline_type=baseline_type,
+                ),
+                ToolCall(tool_name=ToolName.GET_ALLOCATION_PLAN),
                 ToolCall(
                     tool_name=ToolName.GET_DIURNAL_THERMAL_PROFILE,
                     target_timestamp=timestamp,
-                )
+                ),
             )
+        )
 
-    # Merge valid suggested calls if budget allows
+    # Optional model-suggested evidence comes after deterministic mandatory evidence.
     for call in suggested_calls:
         if len(planned) >= max_budget:
             break
-        if not any(
-            p.tool_name == call.tool_name
-            and p.facility_id == call.facility_id
-            and p.alternative_id == call.alternative_id
-            and p.target_timestamp == call.target_timestamp
-            and p.baseline_type == call.baseline_type
-            for p in planned
-        ):
-            planned.append(call)
+        planned.append(call)
 
-    # Deduplicate while preserving order
     unique_planned: list[ToolCall] = []
-    for p in planned:
-        if not any(
-            u.tool_name == p.tool_name
-            and u.facility_id == p.facility_id
-            and u.alternative_id == p.alternative_id
-            and u.target_timestamp == p.target_timestamp
-            and u.baseline_type == p.baseline_type
-            for u in unique_planned
-        ):
-            unique_planned.append(p)
+    for call in planned:
+        if call not in unique_planned:
+            unique_planned.append(call)
 
     return tuple(unique_planned[:max_budget])
 
@@ -1479,46 +1634,157 @@ def validate_tool_selection_semantics(
     tool_selection: GatewayToolSelection,
     available_facility_ids: Sequence[str] = VALID_FACILITY_IDS,
     available_timestamps: Sequence[str] = VALID_TIMESTAMPS,
+    *,
+    expected_intent: IntentCode | None = None,
+    explicit_facility_ids: Sequence[str] = (),
+    selected_facility_ids: Sequence[str] = (),
+    require_mandatory_evidence: bool = False,
 ) -> ToolSelectionValidationIssue | None:
-    """Validate tool calls semantically before execution."""
+    """Validate model or final evidence tool calls before execution."""
     if not tool_selection.tool_calls:
         return ToolSelectionValidationIssue.NO_TOOL_CALLS
 
     if len(tool_selection.tool_calls) > MAX_TOOL_CALLS:
         return ToolSelectionValidationIssue.TOO_MANY_TOOL_CALLS
 
+    if expected_intent is not None and tool_selection.intent_code != expected_intent:
+        return ToolSelectionValidationIssue.INTENT_MISMATCH
+
     facility_id_set = set(available_facility_ids)
     timestamp_set = set(available_timestamps)
+    selected_id_set = set(selected_facility_ids)
 
     for call in tool_selection.tool_calls:
         if call.tool_name == ToolName.GET_ALLOCATION_PLAN:
-            if call.facility_id is not None or call.alternative_id is not None:
+            if any(
+                value is not None
+                for value in (
+                    call.facility_id,
+                    call.alternative_id,
+                    call.target_timestamp,
+                    call.baseline_type,
+                )
+            ):
                 return ToolSelectionValidationIssue.INVALID_ALLOCATION_ARGUMENTS
         elif call.tool_name == ToolName.GET_HEAT_VULNERABILITY_PROFILE:
             if not call.facility_id or call.facility_id not in facility_id_set:
                 return ToolSelectionValidationIssue.INVALID_FACILITY_ID
+            if any(
+                value is not None
+                for value in (call.alternative_id, call.target_timestamp, call.baseline_type)
+            ):
+                return ToolSelectionValidationIssue.INVALID_FACILITY_TOOL_ARGUMENTS
         elif call.tool_name in (
             ToolName.GET_DIURNAL_HEAT_TRANSITION,
             ToolName.GET_DIURNAL_THERMAL_PROFILE,
         ):
+            if call.tool_name == ToolName.GET_DIURNAL_HEAT_TRANSITION and not call.target_timestamp:
+                return ToolSelectionValidationIssue.INVALID_TIMESTAMP
             if call.target_timestamp and call.target_timestamp not in timestamp_set:
                 return ToolSelectionValidationIssue.INVALID_TIMESTAMP
+            if any(
+                value is not None
+                for value in (call.facility_id, call.alternative_id, call.baseline_type)
+            ):
+                return ToolSelectionValidationIssue.INVALID_TIMESTAMP
         elif call.tool_name == ToolName.GET_REPLACEMENT_EVIDENCE:
-            if call.facility_id and call.facility_id not in facility_id_set:
+            if (
+                not call.facility_id
+                or not call.alternative_id
+                or call.facility_id == call.alternative_id
+            ):
+                return ToolSelectionValidationIssue.INVALID_REPLACEMENT_ARGUMENTS
+            if (
+                call.facility_id not in facility_id_set
+                or call.alternative_id not in facility_id_set
+            ):
                 return ToolSelectionValidationIssue.INVALID_FACILITY_ID
-            if call.alternative_id and call.alternative_id not in facility_id_set:
-                return ToolSelectionValidationIssue.INVALID_FACILITY_ID
+            if call.target_timestamp is not None or call.baseline_type is not None:
+                return ToolSelectionValidationIssue.INVALID_REPLACEMENT_ARGUMENTS
+
+            if selected_id_set:
+                facility_selected = call.facility_id in selected_id_set
+                alternative_selected = call.alternative_id in selected_id_set
+                if facility_selected != alternative_selected and not facility_selected:
+                    return ToolSelectionValidationIssue.INVALID_REPLACEMENT_DIRECTION
+                if facility_selected == alternative_selected:
+                    explicit_pair = set(explicit_facility_ids[:2])
+                    if len(explicit_pair) != 2 or explicit_pair != {
+                        call.facility_id,
+                        call.alternative_id,
+                    }:
+                        return ToolSelectionValidationIssue.INVALID_REPLACEMENT_DIRECTION
         elif call.tool_name == ToolName.GET_BASELINE_COMPARISON:
-            pass
+            if call.baseline_type not in {
+                None,
+                "static",
+                "static_allocation",
+                "naive",
+                "naive_thermal",
+                "all",
+            }:
+                return ToolSelectionValidationIssue.INVALID_BASELINE_ARGUMENTS
+            if any(
+                value is not None
+                for value in (call.facility_id, call.alternative_id, call.target_timestamp)
+            ):
+                return ToolSelectionValidationIssue.INVALID_BASELINE_ARGUMENTS
         else:
             return ToolSelectionValidationIssue.UNKNOWN_TOOL
 
+    explicit_ids = tuple(fid for fid in explicit_facility_ids if fid in facility_id_set)
+    supplied_ids = {
+        fid
+        for call in tool_selection.tool_calls
+        for fid in (call.facility_id, call.alternative_id)
+        if fid is not None
+    }
+    if explicit_ids and supplied_ids:
+        explicit_set = set(explicit_ids)
+        if len(explicit_ids) >= 2 and not supplied_ids.issubset(explicit_set):
+            return ToolSelectionValidationIssue.EXPLICIT_ENTITY_CONFLICT
+        if len(explicit_ids) == 1 and explicit_ids[0] not in supplied_ids:
+            return ToolSelectionValidationIssue.EXPLICIT_ENTITY_CONFLICT
+
     if tool_selection.intent_code == IntentCode.REPLACEMENT_RATIONALE:
-        has_rep = any(
-            c.tool_name == ToolName.GET_REPLACEMENT_EVIDENCE for c in tool_selection.tool_calls
-        )
-        if not has_rep:
+        replacement_calls = [
+            call
+            for call in tool_selection.tool_calls
+            if call.tool_name == ToolName.GET_REPLACEMENT_EVIDENCE
+        ]
+        if not replacement_calls:
             return ToolSelectionValidationIssue.REPLACEMENT_MISSING_TOOL
+        if len(explicit_ids) >= 2 and {
+            replacement_calls[0].facility_id,
+            replacement_calls[0].alternative_id,
+        } != set(explicit_ids[:2]):
+            return ToolSelectionValidationIssue.EXPLICIT_ENTITY_CONFLICT
+
+    if require_mandatory_evidence:
+        tool_names = {call.tool_name for call in tool_selection.tool_calls}
+        required_tools = {
+            IntentCode.ALLOCATION_SUMMARY: {ToolName.GET_ALLOCATION_PLAN},
+            IntentCode.DIURNAL_HEAT_TRANSITION: {
+                ToolName.GET_DIURNAL_HEAT_TRANSITION,
+                ToolName.GET_DIURNAL_THERMAL_PROFILE,
+                ToolName.GET_ALLOCATION_PLAN,
+            },
+            IntentCode.HEAT_VULNERABILITY_EXPLANATION: {
+                ToolName.GET_HEAT_VULNERABILITY_PROFILE,
+                ToolName.GET_ALLOCATION_PLAN,
+            },
+            IntentCode.REPLACEMENT_RATIONALE: {
+                ToolName.GET_REPLACEMENT_EVIDENCE,
+                ToolName.GET_HEAT_VULNERABILITY_PROFILE,
+                ToolName.GET_ALLOCATION_PLAN,
+            },
+            IntentCode.BASELINE_COMPARISON: {
+                ToolName.GET_BASELINE_COMPARISON,
+                ToolName.GET_ALLOCATION_PLAN,
+            },
+        }[tool_selection.intent_code]
+        if not required_tools.issubset(tool_names):
+            return ToolSelectionValidationIssue.MISSING_MANDATORY_EVIDENCE
 
     return None
 
@@ -1572,6 +1838,9 @@ def _build_unsupported_scope_response(
     scenario: ScenarioBundle,
     question: str,
     reason: str = "Inquiry outside closed heat intelligence intent scope.",
+    timestamp: str = "16:00",
+    radius_meters: int = 750,
+    k: int = 3,
 ) -> HeatBriefResponse:
     """Construct a clean, non-error UNSUPPORTED scope boundary response."""
     return HeatBriefResponse(
@@ -1579,6 +1848,9 @@ def _build_unsupported_scope_response(
         intent_code=None,
         scenario_id=analysis.optimized.scenario_id,
         plan_fingerprint=compute_allocation_fingerprint(analysis),
+        timestamp=format_timestamp_display(timestamp),
+        radius_meters=radius_meters,
+        k=k,
         title="Inquiry Outside Municipal Cooling Scope",
         brief_items=[
             BriefItem(
@@ -1609,10 +1881,13 @@ def _build_deterministic_fallback_response(
     planned_claims: Sequence[ClaimRecord] | None = None,
     timestamp: str = "16:00",
     baseline_timestamp: str = "16:00",
+    radius_meters: int = 750,
+    k: int | None = None,
 ) -> HeatBriefResponse:
     """Construct an intent-aware deterministic brief when gateway is disabled or fails."""
     fmt_ts = format_timestamp_display(timestamp)
     fmt_base_ts = format_timestamp_display(baseline_timestamp)
+    effective_k = analysis.optimized.k if k is None else k
 
     if planned_claims is None or len(planned_claims) == 0:
         planned_tools = plan_deterministic_evidence(
@@ -1633,14 +1908,22 @@ def _build_deterministic_fallback_response(
                 scenario=scenario,
                 timestamp=fmt_ts,
                 baseline_timestamp=fmt_base_ts,
-                radius_meters=750,
-                k=analysis.optimized.k,
+                radius_meters=radius_meters,
+                k=effective_k,
             )
             claims_list.extend(res.claims)
-            tools_used_list.append(
-                f"{call.tool_name.value}("
-                f"{call.facility_id or call.target_timestamp or call.baseline_type or ''})"
-            )
+            arguments = [
+                value
+                for value in (
+                    call.facility_id,
+                    call.alternative_id,
+                    call.target_timestamp,
+                    call.baseline_type,
+                )
+                if value is not None
+            ]
+            arguments.extend((f"radius={radius_meters}m", f"k={effective_k}"))
+            tools_used_list.append(f"{call.tool_name.value}({', '.join(arguments)})")
         planned_claims = tuple(claims_list)
         if tools_used is None:
             tools_used = tools_used_list
@@ -1666,7 +1949,7 @@ def _build_deterministic_fallback_response(
             "Diurnal Thermal Transition Brief (Deterministic Summary)"
         ),
         IntentCode.HEAT_VULNERABILITY_EXPLANATION: (
-            "Heat Exposure & Population Brief (Deterministic Summary)"
+            "Facility Thermal-Priority & Population Brief (Deterministic Summary)"
         ),
         IntentCode.REPLACEMENT_RATIONALE: (
             "Replacement & Trade-off Brief (Deterministic Summary)"
@@ -1690,6 +1973,9 @@ def _build_deterministic_fallback_response(
         intent_code=intent_code,
         scenario_id=analysis.optimized.scenario_id,
         plan_fingerprint=fingerprint,
+        timestamp=fmt_ts,
+        radius_meters=radius_meters,
+        k=effective_k,
         title=title_map.get(
             intent_code, "Authoritative Heat Intelligence Brief (Deterministic Summary)"
         ),
@@ -1707,11 +1993,10 @@ def generate_heat_brief(
     analysis_result: AllocationAnalysisResult | None = None,
     gateway: ModelGateway | None = None,
 ) -> HeatBriefResponse:
-    """Execute Temperature Intelligence analyst loop with deterministic evidence planning."""
+    """Execute a bounded AI organization pass over authoritative deterministic evidence."""
     if gateway is None:
         gateway = DisabledModelGateway()
 
-    # Preflight: Ensure authoritative analysis exists
     if analysis_result is None:
         target_req = scenario_bundle.build_allocation_request(
             timestamp=request.timestamp,
@@ -1723,34 +2008,74 @@ def generate_heat_brief(
             radius_meters=request.radius_meters,
             k=request.k,
         )
-        prior_res = optimize(prior_req)
-        analysis_result = analyze_future_state(target_req, prior_res)
+        analysis_result = analyze_future_state(target_req, optimize(prior_req))
 
-    # 1. Check explicit unsupported category
+    inferred_intent = infer_intent_from_question(request.question)
+    explicit_facility_ids = scenario_bundle.resolve_facilities(request.question)
+
+    def deterministic_fallback(
+        reason: str,
+        *,
+        intent: IntentCode = inferred_intent,
+        tools_used: list[str] | None = None,
+        planned_claims: Sequence[ClaimRecord] | None = None,
+    ) -> HeatBriefResponse:
+        return _build_deterministic_fallback_response(
+            analysis=analysis_result,
+            scenario=scenario_bundle,
+            question=request.question,
+            intent_code=intent,
+            fallback_reason=reason,
+            tools_used=tools_used,
+            planned_claims=planned_claims,
+            timestamp=request.timestamp,
+            baseline_timestamp=request.baseline_timestamp,
+            radius_meters=request.radius_meters,
+            k=request.k,
+        )
+
     if is_unsupported_question(request.question):
         return _build_unsupported_scope_response(
             analysis=analysis_result,
             scenario=scenario_bundle,
             question=request.question,
             reason="Inquiry outside closed heat intelligence intent scope.",
-        )
-
-    # 2. DisabledModelGateway path (intent-aware deterministic summary)
-    if isinstance(gateway, DisabledModelGateway):
-        inferred_intent = infer_intent_from_question(request.question)
-        return _build_deterministic_fallback_response(
-            analysis=analysis_result,
-            scenario=scenario_bundle,
-            question=request.question,
-            intent_code=inferred_intent,
-            fallback_reason=(
-                "No AI model gateway configured; returning authoritative deterministic summary."
-            ),
             timestamp=request.timestamp,
-            baseline_timestamp=request.baseline_timestamp,
+            radius_meters=request.radius_meters,
+            k=request.k,
         )
 
-    # 3. Gateway intent classification & tool suggestion
+    if isinstance(gateway, DisabledModelGateway):
+        return deterministic_fallback(
+            "No AI model gateway configured; returning authoritative deterministic summary."
+        )
+
+    question_lower = request.question.casefold()
+    has_deterministic_intent_signal = bool(explicit_facility_ids) or any(
+        signal in question_lower
+        for signal in (
+            "allocation",
+            "baseline",
+            "static",
+            "naive",
+            "replace",
+            "rejected",
+            "instead of",
+            "tradeoff",
+            "trade-off",
+            "not selected",
+            "wasn't selected",
+            "transition",
+            "through the day",
+            "fortyguard data change",
+            "unmet demand",
+            "constraint",
+            "k=",
+            "k =",
+        )
+    )
+    expected_intent = inferred_intent if has_deterministic_intent_signal else None
+
     classification_context = GatewayClassificationContext(
         question=request.question,
         current_timestamp=request.timestamp,
@@ -1758,41 +2083,44 @@ def generate_heat_brief(
         supported_tools=tuple(ToolName),
         available_facility_ids=scenario_bundle.get_facility_ids(),
         available_timestamps=tuple(scenario_bundle.get_timestamps()),
+        selected_facility_ids=analysis_result.optimized.selected_facility_ids,
+        radius_meters=request.radius_meters,
+        k=request.k,
     )
 
     try:
         tool_selection = gateway.select_tools(classification_context)
     except Exception as exc:
         logger.warning("Gateway tool selection failed: category=gateway_exception")
-        inferred_intent = infer_intent_from_question(request.question)
-        return _build_deterministic_fallback_response(
-            analysis=analysis_result,
-            scenario=scenario_bundle,
-            question=request.question,
-            intent_code=inferred_intent,
-            fallback_reason=_extract_safe_fallback_reason(
-                exc, FALLBACK_REASON_GATEWAY_SELECTION_FAILED
-            ),
-            timestamp=request.timestamp,
-            baseline_timestamp=request.baseline_timestamp,
+        return deterministic_fallback(
+            _extract_safe_fallback_reason(exc, FALLBACK_REASON_GATEWAY_SELECTION_FAILED)
         )
 
+    # A model returning no supported plan is a provider/planning failure, not proof that a
+    # deterministically in-scope question is unsupported.
     if tool_selection is None:
-        return _build_unsupported_scope_response(
-            analysis=analysis_result,
-            scenario=scenario_bundle,
-            question=request.question,
-            reason="Inquiry outside closed heat intelligence intent scope.",
+        return deterministic_fallback(FALLBACK_REASON_TOOL_SELECTION_INVALID)
+
+    selection_issue = validate_tool_selection_semantics(
+        tool_selection,
+        available_facility_ids=scenario_bundle.get_facility_ids(),
+        available_timestamps=scenario_bundle.get_timestamps(),
+        expected_intent=expected_intent,
+        explicit_facility_ids=explicit_facility_ids,
+        selected_facility_ids=analysis_result.optimized.selected_facility_ids,
+    )
+    if selection_issue is not None:
+        logger.warning(
+            "Gateway tool selection failed semantic validation: category=%s",
+            selection_issue.value,
         )
+        return deterministic_fallback(FALLBACK_REASON_TOOL_SELECTION_INVALID)
 
-    intent_code = tool_selection.intent_code
-    suggested_calls = tool_selection.tool_calls
-
-    # 4. Deterministic Evidence Planner: Enforce minimum contracts, resolve entities, deduplicate
+    intent_code = expected_intent or tool_selection.intent_code
     planned_tool_calls = plan_deterministic_evidence(
         question=request.question,
         intent_code=intent_code,
-        suggested_calls=suggested_calls,
+        suggested_calls=tool_selection.tool_calls,
         scenario=scenario_bundle,
         analysis=analysis_result,
         timestamp=request.timestamp,
@@ -1800,12 +2128,30 @@ def generate_heat_brief(
         max_budget=MAX_TOOL_CALLS,
     )
 
-    # 5. Execute planned tools & build claim ledger
+    final_selection = GatewayToolSelection(
+        intent_code=intent_code,
+        tool_calls=planned_tool_calls,
+    )
+    final_issue = validate_tool_selection_semantics(
+        final_selection,
+        available_facility_ids=scenario_bundle.get_facility_ids(),
+        available_timestamps=scenario_bundle.get_timestamps(),
+        expected_intent=intent_code,
+        explicit_facility_ids=explicit_facility_ids,
+        selected_facility_ids=analysis_result.optimized.selected_facility_ids,
+        require_mandatory_evidence=True,
+    )
+    if final_issue is not None:
+        logger.warning(
+            "Authoritative evidence plan failed semantic validation: category=%s",
+            final_issue.value,
+        )
+        return deterministic_fallback(FALLBACK_REASON_TOOL_SELECTION_INVALID, intent=intent_code)
+
     active_claim_ledger: dict[str, ClaimRecord] = {}
     active_facility_ids: set[str] = set()
     tool_results: list[ToolExecutionResult] = []
     tools_used_strings: list[str] = []
-
     safe_analysis = copy.deepcopy(analysis_result)
 
     for call in planned_tool_calls:
@@ -1824,21 +2170,21 @@ def generate_heat_brief(
                 "Validated tool execution failed: tool=%s category=execution_error",
                 call.tool_name.value,
             )
-            return _build_deterministic_fallback_response(
-                analysis=analysis_result,
-                scenario=scenario_bundle,
-                question=request.question,
-                intent_code=intent_code,
-                fallback_reason=FALLBACK_REASON_TOOL_EXECUTION_FAILED,
-                timestamp=request.timestamp,
-                baseline_timestamp=request.baseline_timestamp,
-            )
+            return deterministic_fallback(FALLBACK_REASON_TOOL_EXECUTION_FAILED, intent=intent_code)
 
         tool_results.append(result)
-        tools_used_strings.append(
-            f"{call.tool_name.value}("
-            f"{call.facility_id or call.target_timestamp or call.baseline_type or ''})"
-        )
+        arguments = [
+            value
+            for value in (
+                call.facility_id,
+                call.alternative_id,
+                call.target_timestamp,
+                call.baseline_type,
+            )
+            if value is not None
+        ]
+        arguments.extend((f"radius={request.radius_meters}m", f"k={request.k}"))
+        tools_used_strings.append(f"{call.tool_name.value}({', '.join(arguments)})")
 
         for claim in result.claims:
             active_claim_ledger[claim.claim_id] = claim
@@ -1847,145 +2193,133 @@ def generate_heat_brief(
             if claim.alternative_id:
                 active_facility_ids.add(claim.alternative_id)
 
-    # 6. Gateway generates answer plan citing claims
     plan_context = GatewayPlanContext(
         question=request.question,
         intent_code=intent_code,
         current_timestamp=request.timestamp,
-        available_claim_ids=tuple(active_claim_ledger.keys()),
+        available_claim_ids=tuple(active_claim_ledger),
         available_facility_ids=tuple(sorted(active_facility_ids)),
+        radius_meters=request.radius_meters,
+        k=request.k,
     )
 
     try:
         answer_plan = gateway.generate_answer_plan(plan_context, tool_results)
     except Exception as exc:
         logger.warning("Gateway answer plan generation failed: category=gateway_exception")
-        return _build_deterministic_fallback_response(
-            analysis=analysis_result,
-            scenario=scenario_bundle,
-            question=request.question,
-            intent_code=intent_code,
-            fallback_reason=_extract_safe_fallback_reason(
-                exc, FALLBACK_REASON_GATEWAY_ANSWER_FAILED
-            ),
+        return deterministic_fallback(
+            _extract_safe_fallback_reason(exc, FALLBACK_REASON_GATEWAY_ANSWER_FAILED),
+            intent=intent_code,
             tools_used=tools_used_strings,
             planned_claims=list(active_claim_ledger.values()),
-            timestamp=request.timestamp,
-            baseline_timestamp=request.baseline_timestamp,
         )
 
-    # 7. Validate Grounding (Fail closed on any unknown claim/facility ID)
-    if answer_plan.intent_code != intent_code:
-        logger.warning("Answer plan validation failed: category=intent_mismatch")
-        return _build_deterministic_fallback_response(
-            analysis=analysis_result,
-            scenario=scenario_bundle,
-            question=request.question,
-            intent_code=intent_code,
-            fallback_reason=FALLBACK_REASON_ANSWER_PLAN_INVALID,
+    if answer_plan.intent_code != intent_code or not answer_plan.sections:
+        logger.warning("Answer plan validation failed: category=intent_or_sections")
+        return deterministic_fallback(
+            FALLBACK_REASON_ANSWER_PLAN_INVALID,
+            intent=intent_code,
             tools_used=tools_used_strings,
             planned_claims=list(active_claim_ledger.values()),
-            timestamp=request.timestamp,
-            baseline_timestamp=request.baseline_timestamp,
         )
 
-    if not answer_plan.sections:
-        logger.warning("Answer plan validation failed: category=no_sections")
-        return _build_deterministic_fallback_response(
-            analysis=analysis_result,
-            scenario=scenario_bundle,
-            question=request.question,
-            intent_code=intent_code,
-            fallback_reason=FALLBACK_REASON_ANSWER_PLAN_INVALID,
-            tools_used=tools_used_strings,
-            planned_claims=list(active_claim_ledger.values()),
-            timestamp=request.timestamp,
-            baseline_timestamp=request.baseline_timestamp,
-        )
-
-    grounded_claim_count = 0
+    cited_claim_ids: list[str] = []
     for section in answer_plan.sections:
-        for cid in section.ordered_claim_ids:
-            if cid not in active_claim_ledger:
+        for claim_id in section.ordered_claim_ids:
+            if claim_id not in active_claim_ledger:
                 logger.warning("Answer plan grounding failed: category=unknown_claim_id")
-                return _build_deterministic_fallback_response(
-                    analysis=analysis_result,
-                    scenario=scenario_bundle,
-                    question=request.question,
-                    intent_code=intent_code,
-                    fallback_reason=FALLBACK_REASON_ANSWER_PLAN_UNGROUNDED,
+                return deterministic_fallback(
+                    FALLBACK_REASON_ANSWER_PLAN_UNGROUNDED,
+                    intent=intent_code,
                     tools_used=tools_used_strings,
                     planned_claims=list(active_claim_ledger.values()),
-                    timestamp=request.timestamp,
-                    baseline_timestamp=request.baseline_timestamp,
                 )
-            grounded_claim_count += 1
-        for fid in section.cited_facility_ids:
-            if fid not in active_facility_ids:
-                logger.warning("Answer plan grounding failed: category=unknown_facility_id")
-                return _build_deterministic_fallback_response(
-                    analysis=analysis_result,
-                    scenario=scenario_bundle,
-                    question=request.question,
-                    intent_code=intent_code,
-                    fallback_reason=FALLBACK_REASON_ANSWER_PLAN_UNGROUNDED,
-                    tools_used=tools_used_strings,
-                    planned_claims=list(active_claim_ledger.values()),
-                    timestamp=request.timestamp,
-                    baseline_timestamp=request.baseline_timestamp,
-                )
+            cited_claim_ids.append(claim_id)
+        if any(fid not in active_facility_ids for fid in section.cited_facility_ids):
+            logger.warning("Answer plan grounding failed: category=unknown_facility_id")
+            return deterministic_fallback(
+                FALLBACK_REASON_ANSWER_PLAN_UNGROUNDED,
+                intent=intent_code,
+                tools_used=tools_used_strings,
+                planned_claims=list(active_claim_ledger.values()),
+            )
 
-    if grounded_claim_count == 0:
-        logger.warning("Answer plan validation failed: category=no_grounded_claims")
-        return _build_deterministic_fallback_response(
-            analysis=analysis_result,
-            scenario=scenario_bundle,
-            question=request.question,
-            intent_code=intent_code,
-            fallback_reason=FALLBACK_REASON_ANSWER_PLAN_INVALID,
+    if not cited_claim_ids or any(
+        fid not in active_facility_ids for fid in answer_plan.requested_highlights
+    ):
+        logger.warning("Answer plan grounding failed: category=empty_or_invalid_highlight")
+        return deterministic_fallback(
+            FALLBACK_REASON_ANSWER_PLAN_INVALID,
+            intent=intent_code,
             tools_used=tools_used_strings,
             planned_claims=list(active_claim_ledger.values()),
         )
 
-    # 8. Deterministic server-owned rendering
+    cited_claim_types = {active_claim_ledger[cid].claim_type for cid in cited_claim_ids}
+    required_claim_types: dict[IntentCode, tuple[set[str], ...]] = {
+        IntentCode.ALLOCATION_SUMMARY: ({"allocation_summary"},),
+        IntentCode.DIURNAL_HEAT_TRANSITION: (
+            {"diurnal_transition"},
+            {"thermal_distribution_profile"},
+        ),
+        IntentCode.HEAT_VULNERABILITY_EXPLANATION: ({"heat_vulnerability_profile"},),
+        IntentCode.REPLACEMENT_RATIONALE: (
+            {"replacement_loss", "replacement_pair_context"},
+        ),
+        IntentCode.BASELINE_COMPARISON: (
+            {"static_baseline_comparison", "naive_baseline_comparison"},
+        ),
+    }
+    if any(
+        not accepted.intersection(cited_claim_types)
+        for accepted in required_claim_types[intent_code]
+    ):
+        logger.warning("Answer plan grounding failed: category=missing_intent_evidence")
+        return deterministic_fallback(
+            FALLBACK_REASON_ANSWER_PLAN_INVALID,
+            intent=intent_code,
+            tools_used=tools_used_strings,
+            planned_claims=list(active_claim_ledger.values()),
+        )
+
     brief_items: list[BriefItem] = []
     seen_claims: set[str] = set()
-
-    for section in answer_plan.sections:
-        for cid in section.ordered_claim_ids:
-            if cid not in seen_claims:
-                claim = active_claim_ledger[cid]
-                brief_items.append(
-                    BriefItem(
-                        claim_id=claim.claim_id,
-                        server_rendered_text=claim.display_text,
-                        facility_id=claim.facility_id,
-                        alternative_id=claim.alternative_id,
-                    )
-                )
-                seen_claims.add(cid)
-
-    fingerprint = compute_allocation_fingerprint(analysis_result)
-    caveats = get_mandatory_caveats(analysis_result)
+    for claim_id in cited_claim_ids:
+        if claim_id in seen_claims:
+            continue
+        claim = active_claim_ledger[claim_id]
+        brief_items.append(
+            BriefItem(
+                claim_id=claim.claim_id,
+                server_rendered_text=claim.display_text,
+                facility_id=claim.facility_id,
+                alternative_id=claim.alternative_id,
+            )
+        )
+        seen_claims.add(claim_id)
 
     title_map = {
-        IntentCode.ALLOCATION_SUMMARY: "Optimal Cooling Center Deployment Brief",
-        IntentCode.DIURNAL_HEAT_TRANSITION: "Diurnal Thermal Transition Analysis",
-        IntentCode.HEAT_VULNERABILITY_EXPLANATION: "Heat Vulnerability & Exposure Explanation",
+        IntentCode.ALLOCATION_SUMMARY: "Optimal Cooling Center Allocation Brief",
+        IntentCode.DIURNAL_HEAT_TRANSITION: "Diurnal Thermal & Allocation Analysis",
+        IntentCode.HEAT_VULNERABILITY_EXPLANATION: (
+            "Facility Thermal-Priority & Population Evidence"
+        ),
         IntentCode.REPLACEMENT_RATIONALE: "Facility Replacement & Trade-off Rationale",
         IntentCode.BASELINE_COMPARISON: "Comparative Baseline Performance Analysis",
     }
-
-    highlights = list(answer_plan.requested_highlights) or list(active_facility_ids)
+    highlights = list(answer_plan.requested_highlights) or sorted(active_facility_ids)
 
     return HeatBriefResponse(
         status=CopilotStatus.AI_GENERATED,
         intent_code=intent_code,
         scenario_id=analysis_result.optimized.scenario_id,
-        plan_fingerprint=fingerprint,
-        title=title_map.get(intent_code, "Heat Intelligence Brief"),
+        plan_fingerprint=compute_allocation_fingerprint(analysis_result),
+        timestamp=format_timestamp_display(request.timestamp),
+        radius_meters=request.radius_meters,
+        k=request.k,
+        title=title_map[intent_code],
         brief_items=brief_items,
         tools_used=tools_used_strings,
         requested_highlights=highlights,
-        mandatory_caveats=caveats,
+        mandatory_caveats=get_mandatory_caveats(analysis_result),
     )

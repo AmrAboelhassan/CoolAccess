@@ -1,5 +1,10 @@
 # Product and Demo
 
+> **Archived planning guide:** Current UI wording, benchmark values, and behavior are defined by
+> the running application and `README.md`. “Future” below means a later prepared historical
+> timestamp, not forecast weather. At 20:00 the naive hottest-catchment baseline ties the dynamic
+> optimum; only the static retained-set comparison has a positive gain.
+
 ## Product objective
 
 CoolAccess helps a municipal heat-response team prioritize a maximum of three existing eligible facilities as hyperlocal heat changes, maximizing covered heat-weighted population demand without adding resources.
@@ -207,4 +212,3 @@ State that outputs are planning/accessibility proxies, not health outcomes.
 - Chat or long generated reports.
 - Multi-hour facility-hour solver.
 - Multiple cities or scenarios.
-

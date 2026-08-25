@@ -15,7 +15,7 @@ export const MetricsSummary: React.FC<MetricsSummaryProps> = ({
   selectedCount,
   budgetK,
   tieBreakCriterion,
-  combinationsEvaluated = 20,
+  combinationsEvaluated,
 }) => {
   if (!metrics) {
     return (
@@ -110,11 +110,13 @@ export const MetricsSummary: React.FC<MetricsSummaryProps> = ({
             <div className="solver-meta">
               <Cpu size={12} className="text-muted" />
               <span>
-                Optimization Engine: Exhaustive evaluation of {combinationsEvaluated} feasible facility combinations
+                {combinationsEvaluated !== undefined
+                  ? `Optimization Engine: Exhaustive evaluation of ${combinationsEvaluated} candidate subsets (up to K=${budgetK})`
+                  : 'Optimization Engine: Candidate-subset count not provided'}
               </span>
             </div>
             <div className="tiebreak-meta">
-              <span>Objective: Maximize heat-weighted population protection ({tieBreakCriterion || 'heat_weighted_demand'})</span>
+              <span>Objective: Maximize heat-weighted demand coverage ({tieBreakCriterion || 'heat_weighted_demand'})</span>
             </div>
           </div>
         </div>

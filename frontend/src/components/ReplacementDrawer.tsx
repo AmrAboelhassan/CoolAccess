@@ -32,12 +32,20 @@ export const ReplacementDrawer: React.FC<ReplacementDrawerProps> = ({
     if (selectedFacilityIds.length > 0 && unselectedFacilityIds.length > 0) {
       let nextSel = selectedId;
       if (!nextSel || !selectedSet.has(nextSel)) {
-        nextSel = selectedFacilityIds.includes('DC_135') ? 'DC_135' : selectedFacilityIds[0];
+        nextSel = selectedFacilityIds.includes('DC_135')
+          ? 'DC_135'
+          : selectedFacilityIds.includes('DC_148') && unselectedFacilityIds.includes('DC_135')
+          ? 'DC_148'
+          : selectedFacilityIds[0];
       }
 
       let nextUnsel = unselectedId;
       if (!nextUnsel || !unselectedFacilityIds.includes(nextUnsel)) {
-        nextUnsel = unselectedFacilityIds.includes('DC_148') ? 'DC_148' : unselectedFacilityIds[0];
+        nextUnsel = unselectedFacilityIds.includes('DC_148')
+          ? 'DC_148'
+          : nextSel === 'DC_148' && unselectedFacilityIds.includes('DC_135')
+          ? 'DC_135'
+          : unselectedFacilityIds[0];
       }
 
       setSelectedId(nextSel);
@@ -56,63 +64,30 @@ export const ReplacementDrawer: React.FC<ReplacementDrawerProps> = ({
       return;
     }
 
-    let isMounted = true;
+    const controller = new AbortController();
     setLoading(true);
     setError(null);
 
-    fetchReplacement(currentTimestamp, selectedId, unselectedId)
+    fetchReplacement(currentTimestamp, selectedId, unselectedId, 750, 3, controller.signal)
       .then((data) => {
-        if (isMounted) {
+        if (!controller.signal.aborted) {
           setReplacementData(data);
           setLoading(false);
         }
       })
-      .catch((err) => {
-        if (isMounted) {
-          setError(err.message || 'Failed to load replacement evidence');
+      .catch((err: unknown) => {
+        if (!controller.signal.aborted) {
+          setError(err instanceof Error ? err.message : 'Failed to load replacement evidence');
           setLoading(false);
         }
       });
 
     return () => {
-      isMounted = false;
+      controller.abort();
     };
   }, [currentTimestamp, selectedId, unselectedId, selectedSet, unselectedFacilityIds]);
 
   const primary = replacementData?.primary_replacement;
-
-  const formattedExplanation = React.useMemo(() => {
-    if (!primary?.explanation) return '';
-    return primary.explanation
-      .replace(
-        /While the alternative covers -(\d+) raw residents,\s*the optimal facility/gi,
-        (_, num) => `The substitution reduces protected population coverage by ${Number(num).toLocaleString()} residents. The optimal facility`
-      )
-      .replace(
-        /While the alternative covers -(\d+) raw residents/gi,
-        (_, num) => `The substitution reduces protected population coverage by ${Number(num).toLocaleString()} residents.`
-      )
-      .replace(
-        /The substitution reduces protected population coverage by ([\d,]+) residents,\s*the optimal facility/gi,
-        (_, num) => `The substitution reduces protected population coverage by ${num} residents. The optimal facility`
-      )
-      .replace(
-        /While the alternative covers \+(\d+) raw residents/gi,
-        (_, num) => `While the alternative covers ${Number(num).toLocaleString()} more raw residents`
-      )
-      .replace(
-        /substantially higher late-afternoon thermal priority/gi,
-        'higher heat-weighted exposure priority'
-      )
-      .replace(
-        /higher late-afternoon thermal priority/gi,
-        'higher heat-weighted exposure priority'
-      )
-      .replace(
-        /higher heat-weighted thermal priority/gi,
-        'higher heat-weighted exposure priority'
-      );
-  }, [primary?.explanation]);
 
   return (
     <div className="replacement-drawer-panel">
@@ -120,9 +95,9 @@ export const ReplacementDrawer: React.FC<ReplacementDrawerProps> = ({
         <div className="drawer-title-group">
           <ArrowLeftRight size={18} className="text-sky" />
           <div>
-            <h3 className="section-title">AI Explainability: Why This Facility Was Selected</h3>
+            <h3 className="section-title">Deterministic Replacement Evidence</h3>
             <p className="section-subtitle">
-              The AI analyst translates optimization decisions into understandable municipal reasoning using verified thermal and population evidence.
+              The optimizer computes each one-for-one substitution. The AI inquiry panel can organize these authoritative claims for natural-language questions.
             </p>
           </div>
         </div>
@@ -180,7 +155,7 @@ export const ReplacementDrawer: React.FC<ReplacementDrawerProps> = ({
 
       {/* Replacement Analysis Result Cards */}
       {loading ? (
-        <div className="drawer-loading-box">AI Explainability ready — compare selected facilities against alternatives.</div>
+        <div className="drawer-loading-box">Loading deterministic replacement evidence...</div>
       ) : error ? (
         <div className="drawer-error-box">{error}</div>
       ) : primary ? (
@@ -221,22 +196,22 @@ export const ReplacementDrawer: React.FC<ReplacementDrawerProps> = ({
             </div>
           </div>
 
-          {/* Physical Mechanism & Explanation */}
+          {/* Authoritative deterministic explanation */}
           <div className="rep-explanation-box">
             <div className="explanation-header">
               <Info size={16} className="text-sky" />
-              <span className="exp-heading">Thermal Priority & Human Exposure Mechanism</span>
+              <span className="exp-heading">Authoritative Replacement Comparison</span>
             </div>
 
-            <p className="exp-paragraph">{formattedExplanation || primary.explanation}</p>
+            <p className="exp-paragraph">{primary.explanation}</p>
 
             <div className="exp-takeaway">
-              <strong>Core Municipal Principle:</strong> Temperature alone does not define heat risk. CoolAccess combines FortyGuard 100m thermal intensity with Census population exposure to ensure cooling centers protect where heat exposure creates the highest human impact, rather than simply selecting the hottest unpopulated zones.
+              <strong>Objective definition:</strong> CoolAccess multiplies 2020 Census population by a normalized thermal-priority weight, then maximizes union coverage under the fixed K=3 facility-count budget and 750m catchment rule.
             </div>
           </div>
         </div>
       ) : (
-        <div className="drawer-loading-box">AI Explainability ready — compare selected facilities against alternatives.</div>
+        <div className="drawer-loading-box">Select a valid facility pair to load deterministic evidence.</div>
       )}
     </div>
   );

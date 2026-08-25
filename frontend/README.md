@@ -2,7 +2,7 @@
 
 Interactive municipal decision dashboard for **CoolAccess: Dynamic Cooling Resource Allocation**.
 
-This frontend provides a professional GIS and operational decision interface for municipal heat-response, resilience, and emergency-management teams facing constrained cooling center activation budgets ($K = 3$).
+This frontend provides a professional GIS and operational decision interface for municipal heat-response, resilience, and emergency-management teams working under a constrained cooling-facility count ($K = 3$).
 
 ---
 
@@ -32,12 +32,14 @@ frontend/src/
 └── components/
     ├── Header.tsx              # Scenario context bar (City, AOI, Date, Budget K=3, Radius, Provenance)
     ├── TimelineControl.tsx     # 5-timestamp diurnal switcher with prominent 16:00 vs 20:00 demo triggers
+    ├── AllocationImpactStrip.tsx # First-screen allocation, baseline, and population trade-off proof
     ├── MapView.tsx             # Leaflet GIS map with FortyGuard 100m thermal grid, catchments, and facilities
     ├── ThermalLegend.tsx       # Standardized continuous thermal legend (32.0°C – 37.7°C)
     ├── MetricsSummary.tsx      # Heat-weighted demand and Census residential population cards
     ├── FacilityList.tsx        # Active K=3 facility status cards with unique demand contributions
     ├── BaselineComparison.tsx  # Side-by-side proof panel (Dynamic Optimum vs Static vs Naive Baseline)
-    ├── ReplacementDrawer.tsx   # 1-for-1 facility swap inspector & physical heat retention explanation
+    ├── HeatIntelligencePanel.tsx # Bounded query routing and authoritative claim-ledger presentation
+    ├── ReplacementDrawer.tsx   # Deterministic 1-for-1 facility substitution evidence
     └── DisclosuresFooter.tsx   # Official data sources, legal notices, and methodology disclosures
 ```
 
@@ -127,16 +129,17 @@ The dashboard is optimized for a 90–120 second municipal presentation:
 1. **Establish Decision Context:**
    - Washington, DC ($14.61\text{ km}^2$ corridor, 100,389 Census residents, 6 public facilities).
    - Fixed budget limit of **$K = 3$** cooling centers.
-2. **State 1 — Midday Peak Heat (`16:00 UTC / 12:00 EDT`):**
-   - Click **`16:00 UTC (Midday)`**.
+2. **State 1 — Static-Baseline Reference (`16:00 UTC / 12:00 EDT`):**
+   - Click **`16:00 UTC (Reference)`**.
    - Optimal Set: `{DC_089 Shaw, DC_148 Northeast, DC_166 Randall}`.
-   - High uniform solar radiation pairs with Northeast Library's dense residential population.
-3. **State 2 — Late Afternoon Differential Heat (`20:00 UTC / 16:00 EDT`):**
+3. **State 2 — Allocation Change (`20:00 UTC / 16:00 EDT`):**
    - Click **`20:00 UTC (Late Afternoon)`**.
-   - Thermal grid overlay reflects differential cooling: tree-canopied residential areas cool down, while downtown commercial masonry retains intense thermal energy.
+   - The prepared FortyGuard grid supplies the observed temperature state; the benchmark does not contain fields that establish physical causes for the spatial pattern.
    - Dynamic reallocation shifts to `{DC_089 Shaw, DC_135 MLK Memorial, DC_166 Randall}` (Northeast Library is replaced by MLK Memorial Library).
 4. **Baseline Proof:**
-   - Baseline Comparison panel shows the dynamic plan achieves **$8,287.16$** demand units vs **$6,693.51$** for Static Midday Baseline (**$+23.81\%$ heat protection gain** with $\$0$ added budget).
+   - The dynamic set covers **8,328.93** heat-weighted demand units versus **6,734.48** for the retained 16:00 set: **+1,594.45** or **+23.68%**, under the same $K=3$ facility-count budget.
+   - The naive hottest-catchment baseline selects the same set and objective at 20:00, so the dynamic optimum has **zero gain over naive** at this timestamp.
+   - Dynamic population coverage is **38,357**, versus **41,876** for the retained set: **3,519 fewer residents** while the heat-weighted objective is higher.
 5. **Replacement Evidence Inspection:**
    - Open Replacement Inspector (`DC_135` vs `DC_148`).
-   - Shows that while `DC_148` has $+3,519$ more raw Census residents, keeping it causes a **$-1,593.64$ ($-19.14\%$)** demand penalty because its neighborhood has already cooled.
+   - Substituting `DC_148` adds **3,519** residents of coverage but lowers the deterministic heat-weighted-demand objective by **1,594.45** units. CoolAccess does not infer why the observed temperatures differ.

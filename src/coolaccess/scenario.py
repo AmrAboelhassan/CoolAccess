@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -34,6 +35,23 @@ DEFAULT_DATA_DIR = (
     if "COOLACCESS_DATA_DIR" in os.environ
     else Path(__file__).resolve().parent.parent.parent / "data" / "locked_dc_scenario"
 )
+
+MIN_RADIUS_METERS = 100
+MAX_RADIUS_METERS = 5000
+
+_LOCKED_FACILITY_ALIASES: dict[str, tuple[str, ...]] = {
+    "DC_089": ("shaw", "shaw library", "watha", "watha t daniel"),
+    "DC_135": ("mlk", "martin luther king", "mlk library"),
+    "DC_148": ("northeast", "northeast library"),
+    "DC_159": ("southeast", "southeast library"),
+    "DC_166": ("randall", "randall recreation center"),
+    "DC_168": ("southwest", "southwest library"),
+}
+
+
+def _normalize_facility_text(value: str) -> str:
+    """Normalize facility wording for deterministic whole-token alias matching."""
+    return re.sub(r"[^a-z0-9]+", " ", value.casefold()).strip()
 
 
 def haversine_meters(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -183,6 +201,14 @@ class ScenarioBundle:
         k: int = 3,
     ) -> AllocationRequest:
         """Build an immutable AllocationRequest for the specified timestamp and radius."""
+        facility_count = len(self.facilities_definitions)
+        if not MIN_RADIUS_METERS <= radius_meters <= MAX_RADIUS_METERS:
+            raise ValueError(
+                f"radius_meters must be between {MIN_RADIUS_METERS} and {MAX_RADIUS_METERS}."
+            )
+        if not 1 <= k <= facility_count:
+            raise ValueError(f"k must be between 1 and {facility_count} for this scenario.")
+
         ts_key = sanitize_timestamp_key(timestamp)
         temps_map = self.thermal_data["temperatures_by_timestamp"].get(ts_key)
         if temps_map is None:
@@ -272,41 +298,48 @@ class ScenarioBundle:
         }
 
     def resolve_facility(self, query: str | None) -> str | None:
-        """Resolve a free-form query or ID to a canonical scenario facility ID."""
+        """Resolve the first explicitly mentioned facility for compatibility."""
+        resolved = self.resolve_facilities(query)
+        return resolved[0] if resolved else None
+
+    def resolve_facilities(self, query: str | None) -> tuple[str, ...]:
+        """Resolve every explicit facility mention in user order.
+
+        IDs, authoritative full names, and a small scenario-owned alias table are
+        matched as complete normalized phrases. Generic words such as ``library``
+        never identify a facility.
+        """
         if not query:
-            return None
-        q = query.strip().lower()
+            return ()
 
-        # 1. Exact or normalized ID match
-        for fid in self.get_facility_ids():
-            fid_l = fid.lower()
-            if q == fid_l or q == fid_l.replace("_", "") or q == fid_l.replace("_", "-"):
-                return fid
-            if q == fid.split("_")[-1]:
-                return fid
+        normalized_query = _normalize_facility_text(query)
+        if not normalized_query:
+            return ()
+        padded_query = f" {normalized_query} "
 
-        # 2. Match full or partial names
+        matches: dict[str, int] = {}
         name_map = self.get_facility_name_map()
-        for fid, name in name_map.items():
-            name_lower = name.lower()
-            if q in name_lower or name_lower in q:
-                return fid
+        for fid in self.get_facility_ids():
+            suffix = fid.split("_")[-1]
+            aliases = {
+                _normalize_facility_text(fid),
+                fid.casefold().replace("_", ""),
+                suffix.casefold(),
+                _normalize_facility_text(name_map[fid]),
+                *(
+                    _normalize_facility_text(alias)
+                    for alias in _LOCKED_FACILITY_ALIASES.get(fid, ())
+                ),
+            }
+            positions = [
+                padded_query.find(f" {alias} ")
+                for alias in aliases
+                if alias and padded_query.find(f" {alias} ") >= 0
+            ]
+            if positions:
+                matches[fid] = min(positions)
 
-        # 3. Keyword / alias heuristics for locked scenario facilities
-        if "shaw" in q or "watha" in q:
-            return "DC_089" if "DC_089" in name_map else None
-        if "mlk" in q or "king" in q or "martin" in q:
-            return "DC_135" if "DC_135" in name_map else None
-        if "northeast" in q:
-            return "DC_148" if "DC_148" in name_map else None
-        if "southeast" in q:
-            return "DC_159" if "DC_159" in name_map else None
-        if "randall" in q:
-            return "DC_166" if "DC_166" in name_map else None
-        if "southwest" in q:
-            return "DC_168" if "DC_168" in name_map else None
-
-        return None
+        return tuple(fid for fid, _ in sorted(matches.items(), key=lambda item: (item[1], item[0])))
 
     def get_thermal_statistics(self, from_ts: str, to_ts: str) -> dict[str, Any]:
         """Compute empirical FortyGuard 100m raster temperature statistics for two timestamps."""
@@ -380,7 +413,9 @@ class ScenarioBundle:
     def get_geojson(self, layer: str = "all", timestamp: str = "16:00") -> dict[str, Any]:
         """Return GeoJSON FeatureCollection(s) for the requested layer."""
         ts_key = sanitize_timestamp_key(timestamp)
-        temps_map = self.thermal_data["temperatures_by_timestamp"].get(ts_key, {})
+        temps_map = self.thermal_data["temperatures_by_timestamp"].get(ts_key)
+        if temps_map is None:
+            raise ValueError("Unsupported prepared benchmark timestamp.")
 
         if layer == "aoi":
             with open(self.data_dir / "geojson" / "aoi.geojson", encoding="utf-8") as f:
@@ -402,6 +437,10 @@ class ScenarioBundle:
                         feat["properties"]["thermal_priority"] = float(
                             self.normalize_temperature(t_val)
                         )
+                data["metadata"] = {
+                    "timestamp": format_timestamp_display(ts_key),
+                    "thermal_data_status": "available",
+                }
                 return data
 
         if layer == "thermal":
@@ -415,6 +454,10 @@ class ScenarioBundle:
                         feat["properties"]["thermal_priority"] = float(
                             self.normalize_temperature(t_val)
                         )
+                data["metadata"] = {
+                    "timestamp": format_timestamp_display(ts_key),
+                    "thermal_data_status": "available",
+                }
                 return data
 
         if layer == "all":

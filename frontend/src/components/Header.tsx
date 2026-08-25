@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, MapPin, Users, Flame, Clock } from 'lucide-react';
+import { Shield, MapPin, Users, Flame, Clock, Sparkles } from 'lucide-react';
 import { ScenarioResponse } from '../types';
 
 interface HeaderProps {
@@ -20,8 +20,27 @@ export const Header: React.FC<HeaderProps> = ({ scenario, currentTimestamp }) =>
             <span className="system-pill">TEMPERATURE AI PLATFORM</span>
           </div>
           <p className="brand-subtitle">
-            Temperature AI Decision Platform for Municipal Heat Resilience & Dynamic Cooling Infrastructure
+            Which three municipal cooling facilities should be active as neighborhood temperatures shift?
           </p>
+          <div className="brand-authority-line">
+            <span>
+              FortyGuard supplies prepared temperature evidence · deterministic optimizer allocates · AI explains validated claims
+            </span>
+            <button
+              type="button"
+              className="btn-header-ai-jump"
+              onClick={() => {
+                const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                document.querySelector('.heat-intelligence-module')?.scrollIntoView({
+                  behavior: reduceMotion ? 'auto' : 'smooth',
+                  block: 'start',
+                });
+              }}
+            >
+              <Sparkles size={12} />
+              <span>Ask allocation question</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -59,14 +78,14 @@ export const Header: React.FC<HeaderProps> = ({ scenario, currentTimestamp }) =>
             K = {scenario?.resource_budget_k ?? 3} Active Facilities
           </div>
           <div className="meta-sub">
-            {scenario?.catchment_radius_meters ?? 750}m Thermal Catchment
+            {scenario?.catchment_radius_meters ?? 750}m Geographic Catchment
           </div>
         </div>
 
         <div className="meta-card">
           <div className="meta-label">
             <Users size={13} className="meta-icon" />
-            <span>Protected Population Base</span>
+            <span>Residential Population Base</span>
           </div>
           <div className="meta-value">
             {scenario?.population_summary?.total_residential_population?.toLocaleString() ?? '100,389'}
@@ -77,4 +96,3 @@ export const Header: React.FC<HeaderProps> = ({ scenario, currentTimestamp }) =>
     </header>
   );
 };
-
