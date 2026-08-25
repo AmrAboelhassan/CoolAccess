@@ -253,6 +253,118 @@ class ScenarioBundle:
             provenance_registry=self.registry,
         )
 
+    def get_facility_ids(self) -> tuple[str, ...]:
+        """Return tuple of authoritative candidate facility identifiers."""
+        return tuple(f["facility_id"] for f in self.facilities_data.get("facilities", []))
+
+    def get_facility_name_map(self) -> dict[str, str]:
+        """Return mapping of facility_id -> full facility name."""
+        return {
+            f["facility_id"]: f["name"]
+            for f in self.facilities_data.get("facilities", [])
+        }
+
+    def get_facility_address_map(self) -> dict[str, str]:
+        """Return mapping of facility_id -> street address."""
+        return {
+            f["facility_id"]: f.get("address") or ""
+            for f in self.facilities_data.get("facilities", [])
+        }
+
+    def resolve_facility(self, query: str | None) -> str | None:
+        """Resolve a free-form query or ID to a canonical scenario facility ID."""
+        if not query:
+            return None
+        q = query.strip().lower()
+
+        # 1. Exact or normalized ID match
+        for fid in self.get_facility_ids():
+            fid_l = fid.lower()
+            if q == fid_l or q == fid_l.replace("_", "") or q == fid_l.replace("_", "-"):
+                return fid
+            if q == fid.split("_")[-1]:
+                return fid
+
+        # 2. Match full or partial names
+        name_map = self.get_facility_name_map()
+        for fid, name in name_map.items():
+            name_lower = name.lower()
+            if q in name_lower or name_lower in q:
+                return fid
+
+        # 3. Keyword / alias heuristics for locked scenario facilities
+        if "shaw" in q or "watha" in q:
+            return "DC_089" if "DC_089" in name_map else None
+        if "mlk" in q or "king" in q or "martin" in q:
+            return "DC_135" if "DC_135" in name_map else None
+        if "northeast" in q:
+            return "DC_148" if "DC_148" in name_map else None
+        if "southeast" in q:
+            return "DC_159" if "DC_159" in name_map else None
+        if "randall" in q:
+            return "DC_166" if "DC_166" in name_map else None
+        if "southwest" in q:
+            return "DC_168" if "DC_168" in name_map else None
+
+        return None
+
+    def get_thermal_statistics(self, from_ts: str, to_ts: str) -> dict[str, Any]:
+        """Compute empirical FortyGuard 100m raster temperature statistics for two timestamps."""
+        from_key = sanitize_timestamp_key(from_ts)
+        to_key = sanitize_timestamp_key(to_ts)
+
+        temps_from_map = self.thermal_data["temperatures_by_timestamp"].get(from_key)
+        temps_to_map = self.thermal_data["temperatures_by_timestamp"].get(to_key)
+
+        if temps_from_map is None:
+            raise ValueError(f"Unknown from_timestamp '{from_ts}'")
+        if temps_to_map is None:
+            raise ValueError(f"Unknown to_timestamp '{to_ts}'")
+
+        from_vals = sorted(float(v) for v in temps_from_map.values())
+        to_vals = sorted(float(v) for v in temps_to_map.values())
+        n = len(from_vals)
+
+        def _calc_stats(vals: list[float]) -> dict[str, float]:
+            mean_v = sum(vals) / len(vals)
+            min_v = vals[0]
+            max_v = vals[-1]
+            med_idx = len(vals) // 2
+            med_v = (
+                vals[med_idx]
+                if len(vals) % 2 == 1
+                else (vals[med_idx - 1] + vals[med_idx]) / 2.0
+            )
+            p90_idx = int(len(vals) * 0.90)
+            p90_v = vals[min(p90_idx, len(vals) - 1)]
+            return {
+                "mean_c": round(mean_v, 2),
+                "min_c": round(min_v, 2),
+                "max_c": round(max_v, 2),
+                "median_c": round(med_v, 2),
+                "p90_c": round(p90_v, 2),
+            }
+
+        # Elevated thermal-priority threshold (> 0.70 weight)
+        from_high = sum(1 for v in from_vals if float(self.normalize_temperature(v)) > 0.70)
+        to_high = sum(1 for v in to_vals if float(self.normalize_temperature(v)) > 0.70)
+
+        from_stats = _calc_stats(from_vals)
+        to_stats = _calc_stats(to_vals)
+
+        return {
+            "from_timestamp": format_timestamp_display(from_ts),
+            "to_timestamp": format_timestamp_display(to_ts),
+            "total_tiles": n,
+            "from_stats": from_stats,
+            "to_stats": to_stats,
+            "mean_temp_delta_c": round(to_stats["mean_c"] - from_stats["mean_c"], 2),
+            "from_high_priority_cells": from_high,
+            "to_high_priority_cells": to_high,
+            "high_priority_cell_delta": to_high - from_high,
+            "thermal_priority_threshold": 0.70,
+        }
+
     def get_metadata(self) -> dict[str, Any]:
         """Return scenario configuration and metadata."""
         return self.metadata

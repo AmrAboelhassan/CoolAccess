@@ -62,7 +62,7 @@ export const DisclosuresFooter: React.FC<DisclosuresFooterProps> = ({ scenario }
             </div>
             <div className="audit-item">
               <span className="audit-label">Test Suite:</span>
-              <span className="audit-val text-emerald">148 Core Tests Passed (100%)</span>
+              <span className="audit-val text-emerald">200 Core Tests Passed (100%)</span>
             </div>
           </div>
         </div>

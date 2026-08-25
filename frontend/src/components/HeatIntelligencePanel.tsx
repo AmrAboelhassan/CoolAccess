@@ -236,14 +236,22 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
                 <span className="badge-ai-mode mode-ai font-mono">
                   <Sparkles size={11} className="inline-icon" /> AI Explanation Active
                 </span>
+              ) : brief.status === 'UNSUPPORTED' ? (
+                <span className="badge-ai-mode mode-fallback font-mono">
+                  <ShieldCheck size={11} className="inline-icon" /> Scope Boundary
+                </span>
               ) : (
                 <span className="badge-ai-mode mode-fallback font-mono">
                   <ShieldCheck size={11} className="inline-icon" /> Verified Deterministic Mode Active
                 </span>
               )}
-              <span className="badge-intent font-mono">
-                {INTENT_LABELS[brief.intent_code] || brief.intent_code}
-              </span>
+              {brief.intent_code ? (
+                <span className="badge-intent font-mono">
+                  {INTENT_LABELS[brief.intent_code] || brief.intent_code}
+                </span>
+              ) : (
+                <span className="badge-intent font-mono">OUT OF SCOPE</span>
+              )}
             </div>
           )}
         </div>
@@ -474,12 +482,34 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
             </div>
           )}
 
+          {/* Operational Scope Notice */}
+          {brief.status === 'UNSUPPORTED' && (
+            <div className="heat-fallback-notice">
+              <ShieldCheck size={20} className="fallback-shield-icon text-amber" />
+              <div className="fallback-text">
+                <div className="fallback-headline">
+                  <strong>Operational Scope Boundary</strong>
+                </div>
+                <div className="fallback-sub">
+                  This inquiry is outside the operational scope of municipal cooling center spatial optimization.
+                  {brief.fallback_reason && (
+                    <span className="fallback-reason-detail"> ({brief.fallback_reason})</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* AI Heat Insight Card */}
           <div className="ai-heat-insight-card">
             <div className="insight-card-header">
               <div className="insight-title-group">
                 <span className="insight-pill-tag">
-                  {brief.status === 'AI_GENERATED' ? 'AI HEAT INTELLIGENCE' : 'DETERMINISTIC HEAT INTELLIGENCE'}
+                  {brief.status === 'AI_GENERATED'
+                    ? 'AI HEAT INTELLIGENCE'
+                    : brief.status === 'UNSUPPORTED'
+                    ? 'SCOPE BOUNDARY'
+                    : 'DETERMINISTIC HEAT INTELLIGENCE'}
                 </span>
                 <h4 className="insight-title">{brief.title}</h4>
               </div>

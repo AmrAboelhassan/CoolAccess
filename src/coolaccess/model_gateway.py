@@ -85,25 +85,13 @@ SYSTEM_POLICY = (
     "Use only the closed schemas and identifiers supplied by the server."
 )
 
-FACILITY_NAME_MAPPINGS: dict[str, str] = {
-    "DC_101": "Anacostia Neighborhood Library (Ward 8)",
-    "DC_102": "Arthur Capper Community Center (Ward 6)",
-    "DC_105": "Baldwin Recreation Center (Ward 7)",
-    "DC_112": "Dorothy I. Height Benning Library (Ward 7)",
-    "DC_118": "Fort Davis Community Center (Ward 7)",
-    "DC_120": "Francis A. Gregory Neighborhood Library (Ward 7)",
-    "DC_124": "Lamond-Riggs Library (Ward 5)",
-    "DC_127": "Mount Pleasant Library (Ward 1)",
-    "DC_131": "Northwest One Library (Ward 6)",
-    "DC_135": "Parklands-Turner Community Center (Ward 8)",
-    "DC_142": "Southeast Neighborhood Library (Ward 6)",
-    "DC_148": "Woodridge Neighborhood Library (Ward 5)",
-}
-
 TOOL_SIGNATURES: dict[str, str] = {
     "get_allocation_plan": "get_allocation_plan() [no arguments]",
     "get_diurnal_heat_transition": (
         "get_diurnal_heat_transition(target_timestamp) [target_timestamp required]"
+    ),
+    "get_diurnal_thermal_profile": (
+        "get_diurnal_thermal_profile(target_timestamp) [target_timestamp optional]"
     ),
     "get_heat_vulnerability_profile": (
         "get_heat_vulnerability_profile(facility_id) [facility_id required]"
@@ -120,10 +108,7 @@ TOOL_SIGNATURES: dict[str, str] = {
 
 def build_tool_selection_prompt(context: GatewayClassificationContext) -> str:
     """Build the model-facing tool-selection prompt with explicit intent/tool dependencies."""
-    facilities_info = [
-        f"- {fid}: {FACILITY_NAME_MAPPINGS.get(fid, fid)}"
-        for fid in context.available_facility_ids
-    ]
+    facilities_info = [f"- {fid}" for fid in context.available_facility_ids]
     tools_info = [
         f"- {TOOL_SIGNATURES.get(tname.value, tname.value)}"
         for tname in context.supported_tools
@@ -147,107 +132,122 @@ def build_tool_selection_prompt(context: GatewayClassificationContext) -> str:
         "- For HEAT_VULNERABILITY_EXPLANATION: Select "
         "get_heat_vulnerability_profile(facility_id) and/or get_allocation_plan().\n"
         "- For DIURNAL_HEAT_TRANSITION: Select "
-        "get_diurnal_heat_transition(target_timestamp) comparing against baseline.\n"
+        "get_diurnal_heat_transition(target_timestamp) and/or "
+        "get_diurnal_thermal_profile(target_timestamp).\n"
         "- Select up to 4 read-only tool calls total.\n"
         "- If the question is unsupported (e.g. medical advice, live forecast, "
         "modifying k/budget), return safe classification or empty tools."
     )
 
 
-# Standard JSON Schema dictionaries (Draft-07 / OpenAPI compatible)
-TOOL_SELECTION_SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "properties": {
-        "intent_code": {
-            "type": "string",
-            "enum": [
-                "ALLOCATION_SUMMARY",
-                "DIURNAL_HEAT_TRANSITION",
-                "HEAT_VULNERABILITY_EXPLANATION",
-                "REPLACEMENT_RATIONALE",
-                "BASELINE_COMPARISON",
-            ],
-        },
-        "tool_calls": {
-            "type": "array",
-            "items": {
-                "anyOf": [
-                    {
-                        "type": "object",
-                        "properties": {
-                            "tool_name": {
-                                "type": "string",
-                                "enum": ["get_allocation_plan"],
-                            },
-                        },
-                        "required": ["tool_name"],
-                    },
-                    {
-                        "type": "object",
-                        "properties": {
-                            "tool_name": {
-                                "type": "string",
-                                "enum": ["get_diurnal_heat_transition"],
-                            },
-                            "target_timestamp": {
-                                "type": "string",
-                                "enum": list(VALID_TIMESTAMPS),
-                            },
-                        },
-                        "required": ["tool_name", "target_timestamp"],
-                    },
-                    {
-                        "type": "object",
-                        "properties": {
-                            "tool_name": {
-                                "type": "string",
-                                "enum": ["get_heat_vulnerability_profile"],
-                            },
-                            "facility_id": {
-                                "type": "string",
-                                "enum": list(VALID_FACILITY_IDS),
-                            },
-                        },
-                        "required": ["tool_name", "facility_id"],
-                    },
-                    {
-                        "type": "object",
-                        "properties": {
-                            "tool_name": {
-                                "type": "string",
-                                "enum": ["get_replacement_evidence"],
-                            },
-                            "facility_id": {
-                                "type": "string",
-                                "enum": list(VALID_FACILITY_IDS),
-                            },
-                            "alternative_id": {
-                                "type": "string",
-                                "enum": list(VALID_FACILITY_IDS),
-                            },
-                        },
-                        "required": ["tool_name", "facility_id", "alternative_id"],
-                    },
-                    {
-                        "type": "object",
-                        "properties": {
-                            "tool_name": {
-                                "type": "string",
-                                "enum": ["get_baseline_comparison"],
-                            },
-                            "baseline_type": {
-                                "type": "string",
-                                "enum": ["static_allocation", "naive_thermal", "all"],
-                            },
-                        },
-                        "required": ["tool_name"],
-                    },
+def build_tool_selection_schema(
+    facility_ids: Sequence[str] = VALID_FACILITY_IDS,
+    timestamps: Sequence[str] = VALID_TIMESTAMPS,
+) -> dict[str, Any]:
+    """Build a parameterized JSON Schema for tool selection."""
+    fac_enum = list(facility_ids) if facility_ids else list(VALID_FACILITY_IDS)
+    ts_enum = list(timestamps) if timestamps else list(VALID_TIMESTAMPS)
+
+    return {
+        "type": "object",
+        "properties": {
+            "intent_code": {
+                "type": "string",
+                "enum": [
+                    "ALLOCATION_SUMMARY",
+                    "DIURNAL_HEAT_TRANSITION",
+                    "HEAT_VULNERABILITY_EXPLANATION",
+                    "REPLACEMENT_RATIONALE",
+                    "BASELINE_COMPARISON",
                 ],
             },
+            "tool_calls": {
+                "type": "array",
+                "items": {
+                    "anyOf": [
+                        {
+                            "type": "object",
+                            "properties": {
+                                "tool_name": {
+                                    "type": "string",
+                                    "enum": ["get_allocation_plan"],
+                                },
+                            },
+                            "required": ["tool_name"],
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "tool_name": {
+                                    "type": "string",
+                                    "enum": [
+                                        "get_diurnal_heat_transition",
+                                        "get_diurnal_thermal_profile",
+                                    ],
+                                },
+                                "target_timestamp": {
+                                    "type": "string",
+                                    "enum": ts_enum,
+                                },
+                            },
+                            "required": ["tool_name", "target_timestamp"],
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "tool_name": {
+                                    "type": "string",
+                                    "enum": ["get_heat_vulnerability_profile"],
+                                },
+                                "facility_id": {
+                                    "type": "string",
+                                    "enum": fac_enum,
+                                },
+                            },
+                            "required": ["tool_name", "facility_id"],
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "tool_name": {
+                                    "type": "string",
+                                    "enum": ["get_replacement_evidence"],
+                                },
+                                "facility_id": {
+                                    "type": "string",
+                                    "enum": fac_enum,
+                                },
+                                "alternative_id": {
+                                    "type": "string",
+                                    "enum": fac_enum,
+                                },
+                            },
+                            "required": ["tool_name", "facility_id", "alternative_id"],
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "tool_name": {
+                                    "type": "string",
+                                    "enum": ["get_baseline_comparison"],
+                                },
+                                "baseline_type": {
+                                    "type": "string",
+                                    "enum": ["static_allocation", "naive_thermal", "all"],
+                                },
+                            },
+                            "required": ["tool_name"],
+                        },
+                    ],
+                },
+            },
         },
-    },
-    "required": ["intent_code", "tool_calls"],
-}
+        "required": ["intent_code", "tool_calls"],
+    }
+
+
+# Standard JSON Schema for static inspection and test compatibility
+TOOL_SELECTION_SCHEMA: dict[str, Any] = build_tool_selection_schema()
 
 ANSWER_PLAN_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -780,9 +780,13 @@ class OpenRouterModelGateway:
             {"role": "user", "content": prompt},
         ]
 
+        schema_dict = build_tool_selection_schema(
+            facility_ids=context.available_facility_ids,
+            timestamps=context.available_timestamps,
+        )
         t0 = time.monotonic()
         prompt_chars = len(prompt) + len(SYSTEM_POLICY)
-        schema_chars = len(json.dumps(TOOL_SELECTION_SCHEMA))
+        schema_chars = len(json.dumps(schema_dict))
         outcome = "success"
         attempts_made = 1
         finish_reason: str | None = None
@@ -795,7 +799,7 @@ class OpenRouterModelGateway:
             res = self._execute_chat_completion(
                 messages=messages,
                 schema_name="coolaccess_tool_selection",
-                schema_dict=TOOL_SELECTION_SCHEMA,
+                schema_dict=schema_dict,
                 operation="tool_selection",
             )
             content_chars = res.response_content_chars
@@ -1008,6 +1012,10 @@ class GeminiModelGateway:
         context: GatewayClassificationContext,
     ) -> GatewayToolSelection | None:
         prompt = build_tool_selection_prompt(context)
+        schema_dict = build_tool_selection_schema(
+            facility_ids=context.available_facility_ids,
+            timestamps=context.available_timestamps,
+        )
         try:
             client = self._get_client()
             response = client.models.generate_content(
@@ -1016,7 +1024,7 @@ class GeminiModelGateway:
                 config={
                     "system_instruction": SYSTEM_POLICY,
                     "response_mime_type": "application/json",
-                    "response_schema": TOOL_SELECTION_SCHEMA,
+                    "response_schema": schema_dict,
                 },
             )
             raw_text = _clean_json_content(response.text or "")

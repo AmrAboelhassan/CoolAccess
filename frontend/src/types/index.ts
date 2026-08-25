@@ -191,7 +191,7 @@ export type IntentCode =
   | 'REPLACEMENT_RATIONALE'
   | 'BASELINE_COMPARISON';
 
-export type CopilotStatus = 'AI_GENERATED' | 'DETERMINISTIC_FALLBACK';
+export type CopilotStatus = 'AI_GENERATED' | 'DETERMINISTIC_FALLBACK' | 'UNSUPPORTED';
 
 export interface BriefItem {
   claim_id: string;
@@ -210,7 +210,7 @@ export interface HeatBriefRequest {
 
 export interface HeatBriefResponse {
   status: CopilotStatus;
-  intent_code: IntentCode;
+  intent_code?: IntentCode | null;
   scenario_id: string;
   plan_fingerprint: string;
   title: string;
