@@ -553,14 +553,16 @@
 .dashboard-main-grid {
   display: grid;
   grid-template-columns: 1.45fr 1fr;
-  gap: 18px;
-  align-items: start;
+  gap: 16px;
+  align-items: stretch;
 }
 
 /* Map Panel */
 .map-panel-column {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  height: 100%;
 }
 
 .map-panel-card {
@@ -570,13 +572,16 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  height: 100%;
+  box-shadow: var(--shadow-sm);
 }
 
 .panel-inner-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 16px;
+  gap: 12px;
+  padding: 10px 14px;
   background-color: var(--bg-surface-raised);
   border-bottom: 1px solid var(--border-default);
 }
@@ -600,7 +605,8 @@
 }
 
 .map-container-wrapper {
-  height: 520px;
+  flex: 1 1 520px;
+  min-height: 520px;
   position: relative;
   width: 100%;
 }
@@ -782,12 +788,12 @@
 
 /* Thermal Legend Panel */
 .thermal-legend-panel {
-  padding: 12px 16px;
+  padding: 11px 14px;
   background-color: var(--bg-surface);
   border-top: 1px solid var(--border-default);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .legend-header {
@@ -857,9 +863,10 @@
 .legend-layer-controls {
   display: flex;
   align-items: center;
-  gap: 16px;
+  column-gap: 14px;
+  row-gap: 7px;
   border-top: 1px solid var(--border-subtle);
-  padding-top: 8px;
+  padding-top: 7px;
   flex-wrap: wrap;
 }
 
@@ -892,7 +899,8 @@
 .decision-panel-column {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
+  min-width: 0;
 }
 
 /* Metrics Summary */
@@ -900,10 +908,11 @@
   background-color: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
-  padding: 16px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
+  box-shadow: var(--shadow-sm);
 }
 
 .section-title-row {
@@ -933,14 +942,14 @@
 .metrics-cards-grid {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .metric-metric-card {
   background-color: var(--bg-app);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  padding: 12px;
+  padding: 10px 11px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1047,10 +1056,11 @@
   background-color: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
-  padding: 16px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
+  box-shadow: var(--shadow-sm);
 }
 
 .facility-panel-header {
@@ -1069,7 +1079,7 @@
 .facility-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
 }
 
 .group-title {
@@ -1093,14 +1103,14 @@
 .facility-cards-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
 
 .facility-card {
   background-color: var(--bg-app);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  padding: 10px 12px;
+  padding: 9px 10px;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -1184,7 +1194,8 @@
 
 .facility-card-metrics {
   display: flex;
-  gap: 12px;
+  gap: 10px;
+  flex-wrap: wrap;
   border-top: 1px solid var(--border-subtle);
   padding-top: 6px;
   margin-top: 2px;
@@ -1757,6 +1768,21 @@
 @media (max-width: 1200px) {
   .dashboard-main-grid {
     grid-template-columns: 1fr;
+    gap: 14px;
+    align-items: start;
+  }
+  .map-panel-column,
+  .map-panel-card {
+    height: auto;
+  }
+  .map-container-wrapper {
+    flex: 0 0 auto;
+    min-height: 0;
+    height: clamp(420px, 58vw, 520px);
+  }
+  .facility-cards-list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .comparison-cards-grid {
     grid-template-columns: 1fr;
@@ -1765,6 +1791,22 @@
     grid-template-columns: 1fr;
   }
   .footer-content {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .facility-cards-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .panel-inner-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .facility-cards-list {
     grid-template-columns: 1fr;
   }
 }

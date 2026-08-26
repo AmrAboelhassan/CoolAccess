@@ -43,14 +43,28 @@ function getThermalColor(tempC: number | null | undefined): string {
   }
 }
 
-// Controller component to center on selected facility
+// Controller component to center on selected facility and observe container size changes
 const MapController: React.FC<{ targetCoords: [number, number] | null }> = ({ targetCoords }) => {
   const map = useMap();
+
   useEffect(() => {
     if (targetCoords) {
       map.flyTo(targetCoords, 15, { duration: 0.8 });
     }
   }, [targetCoords, map]);
+
+  useEffect(() => {
+    const container = map.getContainer();
+    if (!container) return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      map.invalidateSize();
+    });
+
+    resizeObserver.observe(container);
+    return () => resizeObserver.disconnect();
+  }, [map]);
+
   return null;
 };
 
