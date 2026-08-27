@@ -395,6 +395,9 @@ def test_frontend_contract_and_truth_guards_are_present() -> None:
     panel_source = (
         PROJECT_ROOT / "frontend/src/components/HeatIntelligencePanel.tsx"
     ).read_text(encoding="utf-8")
+    overlay_source = (
+        PROJECT_ROOT / "frontend/src/components/ProcessingOverlay.tsx"
+    ).read_text(encoding="utf-8")
     baseline_source = (
         PROJECT_ROOT / "frontend/src/components/BaselineComparison.tsx"
     ).read_text(encoding="utf-8")
@@ -410,6 +413,14 @@ def test_frontend_contract_and_truth_guards_are_present() -> None:
     assert "requestGeneration !== requestGenerationRef.current" in app_source
     assert "Why was DC_148 rejected in favor of DC_135?" not in panel_source
     assert "comparisonSelectedId" in panel_source
+    assert "exact live stage is not reported" in panel_source
+    assert "timer reports elapsed request time, not backend stage completion" in panel_source
+    assert "currentStageIndex" not in panel_source
+    assert "isCompleted" not in panel_source
+    assert "EXACT LIVE STAGE NOT REPORTED" in overlay_source
+    assert "phase completion is not inferred from elapsed time" in overlay_source
+    assert "currentStageIdx" not in overlay_source
+    assert "sequenceFinished" not in overlay_source
     assert "ADDITIONAL PROTECTED RESIDENTS" not in baseline_source
     assert "$0 Cost Increase" not in baseline_source
     assert "AI Explainability:" not in replacement_source

@@ -2154,7 +2154,7 @@
   to { transform: rotate(360deg); }
 }
 
-/* Multi-Stage Loading Stepper Representing Real Processing */
+/* Conceptual multi-stage loading workflow; no live backend stage is implied. */
 .heat-intel-loading-stepper {
   background: linear-gradient(180deg, rgba(2, 132, 199, 0.12) 0%, rgba(15, 23, 42, 0.9) 100%);
   border: 1px solid rgba(2, 132, 199, 0.4);
@@ -2215,6 +2215,14 @@
   gap: 10px;
 }
 
+.stepper-context-label {
+  grid-column: 1 / -1;
+  color: var(--text-muted);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 @media (max-width: 900px) {
   .stepper-stages-list {
     grid-template-columns: 1fr;
@@ -2229,7 +2237,7 @@
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   padding: 10px 12px;
-  opacity: 0.55;
+  opacity: 0.9;
   transition: all 0.2s ease;
 }
 

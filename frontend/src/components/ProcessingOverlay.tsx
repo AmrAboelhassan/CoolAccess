@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import {
   Thermometer,
   Users,
   Grid,
   ShieldCheck,
   Sparkles,
-  CheckCircle2,
   Cpu,
   LucideIcon,
 } from 'lucide-react';
@@ -65,38 +64,16 @@ export const ProcessingOverlay: React.FC<ProcessingOverlayProps> = ({
   isDataReady,
   onComplete,
 }) => {
-  const [currentStageIdx, setCurrentStageIdx] = useState<number>(0);
-  const [sequenceFinished, setSequenceFinished] = useState<boolean>(false);
-
+  // Dismiss only when the actual scenario request reports ready. The short visual
+  // transition is not presented as backend progress telemetry.
   useEffect(() => {
-    const stageDurationMs = 450;
-    const interval = setInterval(() => {
-      setCurrentStageIdx((prev) => {
-        if (prev < STAGES.length - 1) {
-          return prev + 1;
-        } else {
-          clearInterval(interval);
-          setSequenceFinished(true);
-          return prev;
-        }
-      });
-    }, stageDurationMs);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  // When stage sequence finishes and real backend data is ready, transition smoothly
-  useEffect(() => {
-    if (sequenceFinished && isDataReady) {
+    if (isDataReady) {
       const timeout = setTimeout(() => {
         onComplete();
       }, 350);
       return () => clearTimeout(timeout);
     }
-  }, [sequenceFinished, isDataReady, onComplete]);
-
-  const activeStage = STAGES[currentStageIdx];
-  const ActiveIcon = activeStage.icon;
+  }, [isDataReady, onComplete]);
 
   return (
     <div className="processing-overlay-backdrop" role="status" aria-live="polite">
@@ -120,21 +97,14 @@ export const ProcessingOverlay: React.FC<ProcessingOverlayProps> = ({
         {/* Step Indicator Bar */}
         <div className="processing-steps-tracker">
           {STAGES.map((s, idx) => {
-            const isCompleted = idx < currentStageIdx;
-            const isCurrent = idx === currentStageIdx;
             return (
               <div
                 key={s.step}
-                className={`tracker-step ${isCompleted ? 'completed' : ''} ${
-                  isCurrent ? 'active' : ''
-                }`}
+                className="tracker-step"
+                title={`${s.title} ${s.subtitle}`}
               >
                 <div className="tracker-node">
-                  {isCompleted ? (
-                    <CheckCircle2 size={13} className="node-icon-completed" />
-                  ) : (
-                    <span className="node-number">{s.step}</span>
-                  )}
+                  <span className="node-number">{s.step}</span>
                 </div>
                 {idx < STAGES.length - 1 && <div className="tracker-line" />}
               </div>
@@ -142,18 +112,28 @@ export const ProcessingOverlay: React.FC<ProcessingOverlayProps> = ({
           })}
         </div>
 
-        {/* Active Stage Callout */}
+        {/* Actual readiness state; the numbered phases above are conceptual only. */}
         <div className="processing-active-stage-box">
           <div className="active-stage-icon-wrap">
-            <ActiveIcon size={24} className="active-icon" />
+            {isDataReady ? (
+              <ShieldCheck size={24} className="active-icon" />
+            ) : (
+              <Cpu size={24} className="active-icon" />
+            )}
           </div>
           <div className="active-stage-content">
             <div className="active-stage-tag-row">
-              <span className="stage-step-label">STAGE {activeStage.step} OF 5</span>
-              <span className="stage-code-tag">{activeStage.tag}</span>
+              <span className="stage-step-label">CONCEPTUAL 5-PHASE PIPELINE</span>
+              <span className="stage-code-tag">EXACT LIVE STAGE NOT REPORTED</span>
             </div>
-            <h4 className="active-stage-title">{activeStage.title}</h4>
-            <p className="active-stage-subtitle">{activeStage.subtitle}</p>
+            <h4 className="active-stage-title">
+              {isDataReady ? 'Authoritative scenario ready' : 'Preparing authoritative scenario...'}
+            </h4>
+            <p className="active-stage-subtitle">
+              {isDataReady
+                ? 'The server returned verified deterministic allocation evidence.'
+                : 'Waiting for the server response; phase completion is not inferred from elapsed time.'}
+            </p>
           </div>
         </div>
 
@@ -161,11 +141,9 @@ export const ProcessingOverlay: React.FC<ProcessingOverlayProps> = ({
         <div className="processing-footer-bar">
           <div className="pipeline-pulse-dot" />
           <span className="pipeline-status-text">
-            {sequenceFinished && !isDataReady
-              ? 'Waiting for prepared benchmark data...'
-              : sequenceFinished && isDataReady
-              ? 'Verification complete — rendering decision platform...'
-              : 'Deterministic spatial analysis in progress...'}
+            {isDataReady
+              ? 'Verified scenario received — rendering decision platform...'
+              : 'Waiting for prepared benchmark data...'}
           </span>
         </div>
       </div>

@@ -36,7 +36,7 @@ CoolAccess solves this with a **deterministic combinatorial optimization engine*
 2. Combines thermal priority with official residential population at Census-block resolution to compute heat-weighted demand.
 3. Constructs geographic accessibility catchments around candidate public facilities.
 4. Deterministically evaluates every eligible facility subset up to the `K` limit to maximize union heat-weighted demand coverage without double counting.
-5. Proves allocation value against two rigorous baselines: a **Static Baseline** (retaining the midday plan) and a **Naive Thermal Baseline** (selecting centers nearest the hottest hotspots without population weighting).
+5. Proves allocation value against two rigorous baselines: a **Static Baseline** (retaining the midday plan) and a **Naive Thermal Baseline** (ranking facilities by mean thermal priority across accessible catchment cells without population weighting or overlap accounting).
 6. Generates full one-for-one **Replacement Loss Evidence** quantifying the objective and population-coverage effect of each eligible substitution.
 
 ---

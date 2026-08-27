@@ -16,6 +16,7 @@ Invariants:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -52,6 +53,37 @@ from coolaccess.agent import (
 )
 
 logger = logging.getLogger("coolaccess.model_gateway")
+
+
+async def _post_json_with_wall_clock_timeout(
+    *,
+    url: str,
+    payload: dict[str, Any],
+    headers: dict[str, str],
+    timeout_seconds: float,
+    transport: httpx.AsyncBaseTransport | None,
+) -> httpx.Response:
+    """POST JSON with a cancellable outer wall-clock deadline.
+
+    ``httpx`` phase timeouts can reset while bytes arrive. The outer asyncio deadline
+    cancels that in-flight request and closes the client before returning to retry logic.
+    """
+    if timeout_seconds <= 0:
+        raise TimeoutError("Provider call wall-clock deadline exceeded")
+
+    async with httpx.AsyncClient(transport=transport) as client:
+        try:
+            return await asyncio.wait_for(
+                client.post(
+                    url,
+                    json=payload,
+                    headers=headers,
+                    timeout=timeout_seconds,
+                ),
+                timeout=timeout_seconds,
+            )
+        except TimeoutError:
+            raise TimeoutError("Provider call wall-clock deadline exceeded") from None
 
 # Supported Providers & Defaults
 PROVIDER_OPENROUTER = "openrouter"
@@ -550,18 +582,23 @@ class OpenRouterModelGateway:
         total_timeout_seconds: float = OPENROUTER_DEFAULT_TOTAL_TIMEOUT_SECONDS,
         max_turn_timeout_seconds: float = OPENROUTER_MAX_TURN_TIMEOUT_SECONDS,
         http_client: httpx.Client | None = None,
+        http_transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
+        if http_client is not None and http_transport is not None:
+            raise ValueError("Specify only one injected OpenRouter transport")
+        injected_transport = getattr(http_client, "_transport", None)
+        if http_client is not None and not isinstance(
+            injected_transport, httpx.AsyncBaseTransport
+        ):
+            raise TypeError("Injected http_client transport must support async requests")
         self.api_key = api_key
         self.model = model
         self.total_timeout_seconds = total_timeout_seconds
         self.max_turn_timeout_seconds = max_turn_timeout_seconds
-        self._client: httpx.Client | None = http_client
+        self._http_transport = http_transport or injected_transport
+        self._injected_http_client = http_client
         self._start_time: float | None = None
-
-    def _get_client(self) -> httpx.Client:
-        if self._client is None:
-            self._client = httpx.Client()
-        return self._client
+        self._last_attempts_made = 0
 
     def _get_turn_timeout(self) -> float:
         if self._start_time is None:
@@ -607,24 +644,30 @@ class OpenRouterModelGateway:
         attempts = 0
         last_exc: Exception | None = None
         schema_fallback_attempted = False
+        self._last_attempts_made = 0
 
-        while attempts < 3:
-            attempts += 1
+        while attempts < 2:
             call_timeout = self._get_turn_timeout()
-            client = self._get_client()
+            attempts += 1
+            self._last_attempts_made = attempts
 
             try:
-                resp = client.post(
-                    OPENROUTER_API_URL,
-                    json=current_payload,
-                    headers=headers,
-                    timeout=call_timeout,
+                request_payload = current_payload
+                resp = asyncio.run(
+                    _post_json_with_wall_clock_timeout(
+                        url=OPENROUTER_API_URL,
+                        payload=request_payload,
+                        headers=headers,
+                        timeout_seconds=call_timeout,
+                        transport=self._http_transport,
+                    )
                 )
                 resp_status_code = resp.status_code
 
                 # Detect 400 Bad Request on json_schema and fallback to json_object mode
                 if (
                     resp_status_code == 400
+                    and attempts < 2
                     and not schema_fallback_attempted
                     and current_payload.get("response_format", {}).get("type") == "json_schema"
                 ):
@@ -651,8 +694,7 @@ class OpenRouterModelGateway:
                         "response_format": {"type": "json_object"},
                         "stream": False,
                     }
-                    # Do not consume retry count for format fallback
-                    attempts -= 1
+                    # The format fallback is the second and final provider call for this turn.
                     continue
 
                 resp.raise_for_status()
@@ -707,6 +749,7 @@ class OpenRouterModelGateway:
                 # Fallback if exception carries status_code 400 on json_schema
                 if (
                     status_code == 400
+                    and attempts < 2
                     and not schema_fallback_attempted
                     and current_payload.get("response_format", {}).get("type") == "json_schema"
                 ):
@@ -733,14 +776,14 @@ class OpenRouterModelGateway:
                         "response_format": {"type": "json_object"},
                         "stream": False,
                     }
-                    attempts -= 1
                     continue
 
                 is_transient = status_code in (429, 502, 503, 504) or isinstance(
-                    exc, (httpx.TimeoutException, httpx.NetworkError)
+                    exc,
+                    (TimeoutError, httpx.TimeoutException, httpx.NetworkError),
                 )
 
-                if attempts < 3 and is_transient:
+                if attempts == 1 and is_transient:
                     try:
                         remaining = self._get_turn_timeout()
                     except TimeoutError:
@@ -788,7 +831,7 @@ class OpenRouterModelGateway:
         prompt_chars = len(prompt) + len(SYSTEM_POLICY)
         schema_chars = len(json.dumps(schema_dict))
         outcome = "success"
-        attempts_made = 1
+        attempts_made = 0
         finish_reason: str | None = None
         prompt_tokens: int | None = None
         completion_tokens: int | None = None
@@ -811,6 +854,7 @@ class OpenRouterModelGateway:
 
             selection = GatewayToolSelection.model_validate_json(res.content)
         except Exception as exc:
+            attempts_made = self._last_attempts_made
             outcome = (
                 "validation_error"
                 if isinstance(exc, (pydantic.ValidationError, json.JSONDecodeError))
@@ -900,7 +944,7 @@ class OpenRouterModelGateway:
         prompt_chars = len(prompt) + len(SYSTEM_POLICY)
         schema_chars = len(json.dumps(ANSWER_PLAN_SCHEMA))
         outcome = "success"
-        attempts_made = 1
+        attempts_made = 0
         finish_reason: str | None = None
         prompt_tokens: int | None = None
         completion_tokens: int | None = None
@@ -923,6 +967,7 @@ class OpenRouterModelGateway:
 
             plan = GatewayAnswerPlan.model_validate_json(chat_res.content)
         except Exception as exc:
+            attempts_made = self._last_attempts_made
             outcome = (
                 "validation_error"
                 if isinstance(exc, (pydantic.ValidationError, json.JSONDecodeError))

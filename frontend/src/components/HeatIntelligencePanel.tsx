@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Sparkles,
   ShieldCheck,
-  CheckCircle2,
   Clock,
   Thermometer,
   Users,
@@ -175,15 +174,6 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
       if (interval) clearInterval(interval);
     };
   }, [loading]);
-
-  // Current loading stage based on real elapsed time
-  const currentStageIndex = useMemo(() => {
-    if (!loading) return 0;
-    if (elapsedSeconds < 2.0) return 0;
-    if (elapsedSeconds < 4.5) return 1;
-    if (elapsedSeconds < 14.0) return 2;
-    return 3;
-  }, [loading, elapsedSeconds]);
 
   const handleSubmit = async (queryText?: string) => {
     const textToSubmit = (queryText !== undefined ? queryText : question).trim();
@@ -454,49 +444,42 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
         </div>
       </form>
 
-      {/* Multi-Stage Loading Visualizer Representing Real Processing */}
+      {/* Conceptual server workflow with a real elapsed-request timer. */}
       {loading && (
-        <div className="heat-intel-loading-stepper" role="status" aria-live="polite">
+        <div className="heat-intel-loading-stepper">
           <div className="stepper-header-row">
-            <div className="stepper-title-group">
-              <span className="stepper-pulse-dot" />
-            <span className="stepper-title">Preparing Grounded Temperature Brief</span>
+            <div className="stepper-title-group" role="status" aria-live="polite">
+              <span className="stepper-pulse-dot" aria-hidden="true" />
+              <span className="stepper-title">Preparing Grounded Temperature Brief</span>
             </div>
             <div className="stepper-timer-badge font-mono">
-              <Clock size={12} />
+              <Clock size={12} aria-hidden="true" />
               <span>Elapsed: {elapsedSeconds.toFixed(1)}s</span>
             </div>
           </div>
 
           <div className="stepper-stages-list">
-            {LOADING_STAGES.map((stage, idx) => {
-              const isCompleted = idx < currentStageIndex;
-              const isCurrent = idx === currentStageIndex;
-              return (
-                <div
-                  key={stage.id}
-                  className={`stepper-stage-item ${isCompleted ? 'completed' : ''} ${isCurrent ? 'active' : ''}`}
-                >
-                  <div className="stage-icon-col">
-                    {isCompleted ? (
-                      <CheckCircle2 size={16} className="stage-icon check" />
-                    ) : isCurrent ? (
-                      <div className="stage-icon spinner" />
-                    ) : (
-                      <div className="stage-icon dot" />
-                    )}
-                  </div>
-                  <div className="stage-text-col">
-                    <span className="stage-name">{stage.title}</span>
-                    <span className="stage-desc">{stage.desc}</span>
-                  </div>
+            <span className="stepper-context-label">
+              Conceptual server workflow · exact live stage is not reported
+            </span>
+            {LOADING_STAGES.map((stage) => (
+              <div key={stage.id} className="stepper-stage-item">
+                <div className="stage-icon-col">
+                  <div className="stage-icon dot" aria-hidden="true" />
                 </div>
-              );
-            })}
+                <div className="stage-text-col">
+                  <span className="stage-name">{stage.title}</span>
+                  <span className="stage-desc">{stage.desc}</span>
+                </div>
+              </div>
+            ))}
           </div>
 
           <div className="stepper-safety-note">
-            <span>🛡️ Factual claims are rendered from server-validated deterministic evidence.</span>
+            <span>
+              🛡️ Factual claims are rendered from server-validated deterministic evidence. The
+              timer reports elapsed request time, not backend stage completion.
+            </span>
           </div>
         </div>
       )}

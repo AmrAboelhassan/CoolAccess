@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 
 import httpx
 import pytest
@@ -254,7 +255,7 @@ def test_openrouter_rate_limit_retry_success() -> None:
     assert len(calls) == 2
 
 
-def test_openrouter_rate_limit_exhausted() -> None:
+def test_openrouter_rate_limit_exhausted(caplog: pytest.LogCaptureFixture) -> None:
     calls: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -280,8 +281,9 @@ def test_openrouter_rate_limit_exhausted() -> None:
         available_timestamps=VALID_TIMESTAMPS,
     )
 
-    with pytest.raises(RuntimeError) as exc_info:
+    with caplog.at_level(logging.INFO), pytest.raises(RuntimeError) as exc_info:
         gateway.select_tools(context)
     assert "quota exceeded" in str(exc_info.value)
-    assert len(calls) == 3
-
+    # Hardened fail-fast policy executes at most 2 attempts (initial + 1 retry)
+    assert len(calls) == 2
+    assert "operation=tool_selection attempt=2" in caplog.text
