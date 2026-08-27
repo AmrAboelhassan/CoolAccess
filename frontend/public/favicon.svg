@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <defs>
+    <linearGradient id="coolaccess-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#09101d" />
+      <stop offset="100%" stop-color="#050811" />
+    </linearGradient>
+  </defs>
+  <!-- Dark Navy Base Surface -->
+  <rect width="32" height="32" rx="7" fill="url(#coolaccess-bg)" />
+  <rect x="0.75" y="0.75" width="30.5" height="30.5" rx="6.25" stroke="#1e293b" stroke-width="1.5" fill="none" />
+  
+  <!-- Municipal Spatial GIS Cooling Catchment Zone -->
+  <circle cx="16" cy="16" r="9.5" stroke="#0284c7" stroke-width="2" fill="none" stroke-opacity="0.8" />
+  
+  <!-- Spatial Cooling Cardinal Allocation Rays -->
+  <path d="M16 4.5 V9.5 M16 22.5 V27.5 M4.5 16 H9.5 M22.5 16 H27.5" stroke="#22d3ee" stroke-width="2.5" stroke-linecap="round" />
+  
+  <!-- Central Spatial Cooling Refuge Node -->
+  <polygon points="16,10 22,16 16,22 10,16" fill="#06b6d4" />
+  
+  <!-- Active Refuge Core -->
+  <circle cx="16" cy="16" r="2.25" fill="#ffffff" />
+</svg>
