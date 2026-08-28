@@ -30,22 +30,22 @@ def bundle() -> ScenarioBundle:
 
 
 def test_openrouter_timeout_constants_and_budget() -> None:
-    assert OPENROUTER_DEFAULT_TOTAL_TIMEOUT_SECONDS == 45.0
-    assert OPENROUTER_MAX_TURN_TIMEOUT_SECONDS == 15.0
+    assert OPENROUTER_DEFAULT_TOTAL_TIMEOUT_SECONDS == 50.0
+    assert OPENROUTER_MAX_TURN_TIMEOUT_SECONDS == 25.0
 
     gateway = OpenRouterModelGateway(api_key="mock_key")
-    turn_timeout = gateway._get_turn_timeout()
-    assert turn_timeout <= 15.0
+    turn_timeout = gateway._get_turn_timeout(deadline=time.monotonic() + 50.0)
+    assert turn_timeout <= 25.0
 
 
-def test_openrouter_shared_deadline_caps_later_turns() -> None:
+def test_openrouter_deadline_caps_later_turns() -> None:
     gateway = OpenRouterModelGateway(api_key="mock_key")
-    gateway._start_time = time.monotonic() - 30.0
-    assert 14.5 <= gateway._get_turn_timeout() <= 15.0
+    deadline = time.monotonic() + 15.0
+    assert 14.5 <= gateway._get_turn_timeout(deadline=deadline) <= 15.0
 
-    gateway._start_time = time.monotonic() - 44.6
+    past_deadline = time.monotonic() - 1.0
     with pytest.raises(TimeoutError, match="Overall Temperature Intelligence request deadline"):
-        gateway._get_turn_timeout()
+        gateway._get_turn_timeout(deadline=past_deadline)
 
 
 def test_openrouter_enforces_outer_wall_clock_attempt_timeout() -> None:
@@ -194,7 +194,7 @@ def test_openrouter_single_retry_on_transient_error() -> None:
     assert call_count == 2
 
 
-def test_schema_fallback_and_transient_failure_still_cap_at_two_calls() -> None:
+def test_transient_failure_caps_at_two_calls() -> None:
     response_formats: list[str] = []
 
     def mock_handler(request: httpx.Request) -> httpx.Response:
@@ -202,7 +202,7 @@ def test_schema_fallback_and_transient_failure_still_cap_at_two_calls() -> None:
         response_format = payload["response_format"]["type"]
         response_formats.append(response_format)
         if len(response_formats) == 1:
-            return httpx.Response(status_code=400, json={"error": "schema unsupported"})
+            return httpx.Response(status_code=503, json={"error": "service unavailable"})
         return httpx.Response(
             status_code=429,
             headers={"retry-after": "0.1"},
@@ -220,7 +220,7 @@ def test_schema_fallback_and_transient_failure_still_cap_at_two_calls() -> None:
             operation="tool_selection",
         )
 
-    assert response_formats == ["json_schema", "json_object"]
+    assert response_formats == ["json_object", "json_object"]
 
 
 def test_terminal_second_attempt_400_is_not_hidden_by_stale_retry_error() -> None:
@@ -248,7 +248,7 @@ def test_terminal_second_attempt_400_is_not_hidden_by_stale_retry_error() -> Non
             operation="tool_selection",
         )
 
-    assert response_formats == ["json_schema", "json_schema"]
+    assert response_formats == ["json_object", "json_object"]
     assert exc_info.value.response.status_code == 400
 
 
@@ -283,12 +283,12 @@ def test_terminal_second_attempt_400_is_not_hidden_by_stale_retry_error() -> Non
         (
             "Why is DC_148 selected at 16:00 UTC?",
             "16:00",
-            IntentCode.DIURNAL_HEAT_TRANSITION,
+            IntentCode.HEAT_VULNERABILITY_EXPLANATION,
         ),
         (
             "Why is DC_135 selected at 20:00 UTC?",
             "20:00",
-            IntentCode.DIURNAL_HEAT_TRANSITION,
+            IntentCode.HEAT_VULNERABILITY_EXPLANATION,
         ),
         (
             "Compare dynamic allocation against the static baseline",

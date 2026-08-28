@@ -23,6 +23,7 @@ import hashlib
 import json
 import logging
 import re
+import time
 from collections.abc import Sequence
 from enum import StrEnum
 from typing import Annotated, Any, Protocol
@@ -334,39 +335,53 @@ def infer_intent_from_question(question: str) -> IntentCode:
             "swapping",
             "would be lost",
             "lose by choosing",
+            "preferable to",
+            "better than",
         )
     ):
         return IntentCode.REPLACEMENT_RATIONALE
 
-    # 3. Diurnal / Time Transition
+    # 3. Diurnal / Time Transition (specific to diurnal shift, not bare operational timestamps)
     if any(
         kw in q_lower
         for kw in (
             "shift",
             "transition",
             "diurnal",
-            "evening",
-            "afternoon",
-            "noon",
-            "midday",
-            "between",
-            "hour",
-            "20:00",
-            "18:00",
-            "14:00",
-            "16:00",
-            "22:00",
-            "2pm",
-            "4pm",
-            "6pm",
-            "8pm",
-            "10pm",
             "evolve",
+            "evolution",
+            "drop",
+            "dropped",
+            "drop out",
+            "dropped out",
+            "no longer active",
             "through the day",
             "stayed hotter",
             "hotter later",
             "changed in thermal",
+            "changed between",
+            "between noon",
+            "between 12",
+            "between 14",
+            "between 16",
+            "between 18",
+            "between 20",
+            "noon and",
+            "in the evening",
+            "in the afternoon",
             "fortyguard data change",
+            "thermal pattern change",
+            "thermal pattern evolve",
+            "between 16:00 and 20:00",
+            "between 14:00 and 16:00",
+            "between 16:00 and 18:00",
+            "between 18:00 and 20:00",
+            "between 20:00 and 22:00",
+            "across the afternoon",
+            "across the day",
+            "over time",
+            "hottest time",
+            "earlier in the day",
         )
     ):
         return IntentCode.DIURNAL_HEAT_TRANSITION
@@ -399,6 +414,7 @@ def infer_intent_from_question(question: str) -> IntentCode:
             "dc_166",
             "dc_168",
             "why is ",
+            "why was ",
             "why martin",
             "evidence supports",
             "what thermal and population",
@@ -420,6 +436,7 @@ class ModelGateway(Protocol):
     def select_tools(
         self,
         context: GatewayClassificationContext,
+        deadline: float | None = None,
     ) -> GatewayToolSelection | None:
         """Classify intent and select read-only tools, or None if unsupported."""
         ...
@@ -428,6 +445,7 @@ class ModelGateway(Protocol):
         self,
         context: GatewayPlanContext,
         tool_results: Sequence[ToolExecutionResult],
+        deadline: float | None = None,
     ) -> GatewayAnswerPlan:
         """Generate structured answer plan citing strictly available claims."""
         ...
@@ -442,6 +460,7 @@ class DisabledModelGateway:
     def select_tools(
         self,
         context: GatewayClassificationContext,
+        deadline: float | None = None,
     ) -> GatewayToolSelection | None:
         return None
 
@@ -449,6 +468,7 @@ class DisabledModelGateway:
         self,
         context: GatewayPlanContext,
         tool_results: Sequence[ToolExecutionResult],
+        deadline: float | None = None,
     ) -> GatewayAnswerPlan:
         raise RuntimeError("DisabledModelGateway does not generate answer plans.")
 
@@ -469,6 +489,7 @@ class FakeModelGateway:
     def select_tools(
         self,
         context: GatewayClassificationContext,
+        deadline: float | None = None,
     ) -> GatewayToolSelection | None:
         self.select_tools_called += 1
 
@@ -624,6 +645,7 @@ class FakeModelGateway:
         self,
         context: GatewayPlanContext,
         tool_results: Sequence[ToolExecutionResult],
+        deadline: float | None = None,
     ) -> GatewayAnswerPlan:
         self.generate_plan_called += 1
 
@@ -650,11 +672,25 @@ class FakeModelGateway:
                 sections=(
                     AnswerSectionPlan(
                         section_type="summary",
-                        ordered_claim_ids=context.available_claim_ids[:1],
-                        cited_facility_ids=("DC_999_HALLUCINATED",),
+                        ordered_claim_ids=(context.available_claim_ids[0],),
+                        cited_facility_ids=("DC_999_NONEXISTENT",),
                     ),
                 ),
-                requested_highlights=(),
+                requested_highlights=("DC_135",),
+                tools_used=("get_allocation_plan",),
+            )
+        if self.simulate_failure == "invalid_highlight_id":
+            return GatewayAnswerPlan(
+                intent_code=context.intent_code,
+                headline_code="HEADLINE_INVALID",
+                sections=(
+                    AnswerSectionPlan(
+                        section_type="summary",
+                        ordered_claim_ids=(context.available_claim_ids[0],),
+                        cited_facility_ids=(),
+                    ),
+                ),
+                requested_highlights=("DC_999_NONEXISTENT",),
                 tools_used=("get_allocation_plan",),
             )
 
@@ -2080,6 +2116,7 @@ def _try_resolve_deterministic_preset_selection(
     if (
         "diurnal heat transition" in q_clean
         or "thermal pattern between 16:00 and 20:00" in q_clean
+        or "changed in the prepared thermal pattern" in q_clean
     ):
         return GatewayToolSelection(
             intent_code=IntentCode.DIURNAL_HEAT_TRANSITION,
@@ -2110,7 +2147,53 @@ def _try_resolve_deterministic_preset_selection(
             ),
         )
 
+    # 5. Preset Unmet Demand
+    if "unmet demand" in q_clean or "where does heat-weighted demand remain unmet" in q_clean:
+        return GatewayToolSelection(
+            intent_code=IntentCode.ALLOCATION_SUMMARY,
+            tool_calls=(ToolCall(tool_name=ToolName.GET_ALLOCATION_PLAN),),
+        )
+
+    # 6. Preset Evidence-Based Heat Brief
+    if (
+        "thermal-priority and population evidence" in q_clean
+        or "evidence for this allocation" in q_clean
+    ):
+        return GatewayToolSelection(
+            intent_code=IntentCode.ALLOCATION_SUMMARY,
+            tool_calls=(
+                ToolCall(tool_name=ToolName.GET_ALLOCATION_PLAN),
+                ToolCall(
+                    tool_name=ToolName.GET_DIURNAL_THERMAL_PROFILE,
+                    target_timestamp=current_timestamp,
+                ),
+            ),
+        )
+
     return None
+
+
+def _safe_call_gateway_select_tools(
+    gateway: ModelGateway,
+    context: GatewayClassificationContext,
+    deadline: float,
+) -> GatewayToolSelection | None:
+    try:
+        return gateway.select_tools(context, deadline=deadline)
+    except TypeError:
+        return gateway.select_tools(context)
+
+
+def _safe_call_gateway_generate_answer_plan(
+    gateway: ModelGateway,
+    context: GatewayPlanContext,
+    tool_results: Sequence[ToolExecutionResult],
+    deadline: float,
+) -> GatewayAnswerPlan:
+    try:
+        return gateway.generate_answer_plan(context, tool_results, deadline=deadline)
+    except TypeError:
+        return gateway.generate_answer_plan(context, tool_results)
 
 
 def generate_heat_brief(
@@ -2138,6 +2221,9 @@ def generate_heat_brief(
 
     inferred_intent = infer_intent_from_question(request.question)
     explicit_facility_ids = scenario_bundle.resolve_facilities(request.question)
+
+    total_timeout = getattr(gateway, "total_timeout_seconds", 50.0)
+    request_deadline = time.monotonic() + total_timeout
 
     def deterministic_fallback(
         reason: str,
@@ -2235,7 +2321,11 @@ def generate_heat_brief(
         tool_selection = deterministic_selection
     else:
         try:
-            raw_tool_selection = gateway.select_tools(classification_context)
+            raw_tool_selection = _safe_call_gateway_select_tools(
+                gateway,
+                classification_context,
+                deadline=request_deadline,
+            )
         except Exception as exc:
             logger.warning("Gateway tool selection failed: category=gateway_exception")
             return deterministic_fallback(
@@ -2299,7 +2389,10 @@ def generate_heat_brief(
         return deterministic_fallback(FALLBACK_REASON_TOOL_SELECTION_INVALID, intent=intent_code)
 
     active_claim_ledger: dict[str, ClaimRecord] = {}
-    active_facility_ids: set[str] = set()
+    active_facility_ids: set[str] = set(analysis_result.optimized.selected_facility_ids)
+    for fid in explicit_facility_ids:
+        active_facility_ids.add(fid)
+
     tool_results: list[ToolExecutionResult] = []
     tools_used_strings: list[str] = []
     safe_analysis = copy.deepcopy(analysis_result)
@@ -2343,18 +2436,25 @@ def generate_heat_brief(
             if claim.alternative_id:
                 active_facility_ids.add(claim.alternative_id)
 
+    allowed_highlight_facility_ids = set(active_facility_ids).union(explicit_facility_ids)
+
     plan_context = GatewayPlanContext(
         question=request.question,
         intent_code=intent_code,
         current_timestamp=request.timestamp,
         available_claim_ids=tuple(active_claim_ledger),
-        available_facility_ids=tuple(sorted(active_facility_ids)),
+        available_facility_ids=tuple(sorted(allowed_highlight_facility_ids)),
         radius_meters=request.radius_meters,
         k=request.k,
     )
 
     try:
-        answer_plan = gateway.generate_answer_plan(plan_context, tool_results)
+        answer_plan = _safe_call_gateway_generate_answer_plan(
+            gateway,
+            plan_context,
+            tool_results,
+            deadline=request_deadline,
+        )
     except Exception as exc:
         logger.warning("Gateway answer plan generation failed: category=gateway_exception")
         return deterministic_fallback(
@@ -2385,7 +2485,7 @@ def generate_heat_brief(
                     planned_claims=list(active_claim_ledger.values()),
                 )
             cited_claim_ids.append(claim_id)
-        if any(fid not in active_facility_ids for fid in section.cited_facility_ids):
+        if any(fid not in allowed_highlight_facility_ids for fid in section.cited_facility_ids):
             logger.warning("Answer plan grounding failed: category=unknown_facility_id")
             return deterministic_fallback(
                 FALLBACK_REASON_ANSWER_PLAN_UNGROUNDED,
@@ -2394,16 +2494,39 @@ def generate_heat_brief(
                 planned_claims=list(active_claim_ledger.values()),
             )
 
-    if not cited_claim_ids or any(
-        fid not in active_facility_ids for fid in answer_plan.requested_highlights
-    ):
-        logger.warning("Answer plan grounding failed: category=empty_or_invalid_highlight")
+    if not cited_claim_ids:
+        logger.warning("Answer plan grounding failed: category=empty_claims")
         return deterministic_fallback(
             FALLBACK_REASON_ANSWER_PLAN_INVALID,
             intent=intent_code,
             tools_used=tools_used_strings,
             planned_claims=list(active_claim_ledger.values()),
         )
+
+    # Fail closed if model hallucinates an invalid/unknown facility ID format in highlights
+    _FACILITY_ID_RE = re.compile(r"^DC_\d{3}(?:_[A-Z0-9]+)?$")
+    for h in answer_plan.requested_highlights:
+        if _FACILITY_ID_RE.match(h) and h not in allowed_highlight_facility_ids:
+            logger.warning("Answer plan grounding failed: unknown facility highlight=%s", h)
+            return deterministic_fallback(
+                FALLBACK_REASON_ANSWER_PLAN_INVALID,
+                intent=intent_code,
+                tools_used=tools_used_strings,
+                planned_claims=list(active_claim_ledger.values()),
+            )
+
+    # Sanitize requested highlights against allowed facility IDs in request scope
+    valid_highlights = [
+        fid for fid in answer_plan.requested_highlights if fid in allowed_highlight_facility_ids
+    ]
+    if not valid_highlights:
+        valid_highlights = [
+            fid for fid in explicit_facility_ids if fid in allowed_highlight_facility_ids
+        ] or [
+            fid
+            for fid in analysis_result.optimized.selected_facility_ids
+            if fid in allowed_highlight_facility_ids
+        ] or sorted(active_facility_ids)
 
     cited_claim_types = {active_claim_ledger[cid].claim_type for cid in cited_claim_ids}
     required_claim_types: dict[IntentCode, tuple[set[str], ...]] = {
@@ -2457,7 +2580,6 @@ def generate_heat_brief(
         IntentCode.REPLACEMENT_RATIONALE: "Facility Replacement & Trade-off Rationale",
         IntentCode.BASELINE_COMPARISON: "Comparative Baseline Performance Analysis",
     }
-    highlights = list(answer_plan.requested_highlights) or sorted(active_facility_ids)
 
     return HeatBriefResponse(
         status=CopilotStatus.AI_GENERATED,
@@ -2470,6 +2592,6 @@ def generate_heat_brief(
         title=title_map[intent_code],
         brief_items=brief_items,
         tools_used=tools_used_strings,
-        requested_highlights=highlights,
+        requested_highlights=valid_highlights,
         mandatory_caveats=get_mandatory_caveats(analysis_result),
     )

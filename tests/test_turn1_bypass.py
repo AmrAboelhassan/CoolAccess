@@ -34,6 +34,7 @@ class CountingLiveGateway:
     def select_tools(
         self,
         context: GatewayClassificationContext,
+        deadline: float | None = None,
     ) -> GatewayToolSelection | None:
         self.select_tools_calls += 1
         return GatewayToolSelection(
@@ -47,6 +48,7 @@ class CountingLiveGateway:
         self,
         context: GatewayPlanContext,
         tool_results: Sequence[ToolExecutionResult],
+        deadline: float | None = None,
     ) -> GatewayAnswerPlan:
         self.generate_plan_calls += 1
         return GatewayAnswerPlan(
@@ -68,6 +70,7 @@ class HallucinatedPlanGateway(CountingLiveGateway):
         self,
         context: GatewayPlanContext,
         tool_results: Sequence[ToolExecutionResult],
+        deadline: float | None = None,
     ) -> GatewayAnswerPlan:
         self.generate_plan_calls += 1
         return GatewayAnswerPlan(
@@ -89,6 +92,7 @@ class UnknownHighlightGateway(CountingLiveGateway):
         self,
         context: GatewayPlanContext,
         tool_results: Sequence[ToolExecutionResult],
+        deadline: float | None = None,
     ) -> GatewayAnswerPlan:
         self.generate_plan_calls += 1
         return GatewayAnswerPlan(

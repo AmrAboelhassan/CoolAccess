@@ -48,6 +48,7 @@ from coolaccess.agent import (
     GatewayClassificationContext,
     GatewayPlanContext,
     GatewayToolSelection,
+    IntentCode,
     ModelGateway,
     ToolExecutionResult,
 )
@@ -89,8 +90,9 @@ async def _post_json_with_wall_clock_timeout(
 PROVIDER_OPENROUTER = "openrouter"
 DEFAULT_OPENROUTER_MODEL = "openrouter/free"
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
-OPENROUTER_DEFAULT_TOTAL_TIMEOUT_SECONDS = 45.0
-OPENROUTER_MAX_TURN_TIMEOUT_SECONDS = 15.0
+OPENROUTER_DEFAULT_TOTAL_TIMEOUT_SECONDS = 50.0
+OPENROUTER_MAX_TURN_TIMEOUT_SECONDS = 25.0
+OPENROUTER_DEFAULT_MAX_TOKENS = 3500
 OPENROUTER_RETRY_BACKOFF_SECONDS = 0.5
 
 PROVIDER_GEMINI = "gemini"
@@ -286,59 +288,81 @@ def build_tool_selection_schema(
 # Standard JSON Schema for static inspection and test compatibility
 TOOL_SELECTION_SCHEMA: dict[str, Any] = build_tool_selection_schema()
 
-ANSWER_PLAN_SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "properties": {
-        "intent_code": {
-            "type": "string",
-            "enum": [
-                "ALLOCATION_SUMMARY",
-                "DIURNAL_HEAT_TRANSITION",
-                "HEAT_VULNERABILITY_EXPLANATION",
-                "REPLACEMENT_RATIONALE",
-                "BASELINE_COMPARISON",
-            ],
-        },
-        "headline_code": {"type": "string"},
-        "sections": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "section_type": {"type": "string"},
-                    "ordered_claim_ids": {
-                        "type": "array",
-                        "items": {"type": "string"},
+
+def build_answer_plan_schema(
+    intent_code: IntentCode | None = None,
+    available_claim_ids: Sequence[str] = (),
+    available_facility_ids: Sequence[str] = (),
+) -> dict[str, Any]:
+    """Build a parameterized JSON Schema for answer planning."""
+    intent_enum = (
+        [intent_code.value]
+        if intent_code
+        else [
+            "ALLOCATION_SUMMARY",
+            "DIURNAL_HEAT_TRANSITION",
+            "HEAT_VULNERABILITY_EXPLANATION",
+            "REPLACEMENT_RATIONALE",
+            "BASELINE_COMPARISON",
+        ]
+    )
+    claim_items: dict[str, Any] = {"type": "string"}
+    if available_claim_ids:
+        claim_items["enum"] = list(available_claim_ids)
+    fac_items: dict[str, Any] = {"type": "string"}
+    if available_facility_ids:
+        fac_items["enum"] = list(available_facility_ids)
+
+    return {
+        "type": "object",
+        "properties": {
+            "intent_code": {
+                "type": "string",
+                "enum": intent_enum,
+            },
+            "headline_code": {"type": "string"},
+            "sections": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "section_type": {"type": "string"},
+                        "ordered_claim_ids": {
+                            "type": "array",
+                            "items": claim_items,
+                        },
+                        "cited_facility_ids": {
+                            "type": "array",
+                            "items": fac_items,
+                        },
                     },
-                    "cited_facility_ids": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                    },
+                    "required": [
+                        "section_type",
+                        "ordered_claim_ids",
+                        "cited_facility_ids",
+                    ],
                 },
-                "required": [
-                    "section_type",
-                    "ordered_claim_ids",
-                    "cited_facility_ids",
-                ],
+            },
+            "requested_highlights": {
+                "type": "array",
+                "items": fac_items,
+            },
+            "tools_used": {
+                "type": "array",
+                "items": {"type": "string"},
             },
         },
-        "requested_highlights": {
-            "type": "array",
-            "items": {"type": "string"},
-        },
-        "tools_used": {
-            "type": "array",
-            "items": {"type": "string"},
-        },
-    },
-    "required": [
-        "intent_code",
-        "headline_code",
-        "sections",
-        "requested_highlights",
-        "tools_used",
-    ],
-}
+        "required": [
+            "intent_code",
+            "headline_code",
+            "sections",
+            "requested_highlights",
+            "tools_used",
+        ],
+    }
+
+
+ANSWER_PLAN_SCHEMA: dict[str, Any] = build_answer_plan_schema()
 
 
 def _extract_status_code(exc: Exception) -> int | None:
@@ -562,14 +586,24 @@ class OpenRouterChatResult:
 
 
 def _clean_json_content(raw: str) -> str:
-    """Strip optional markdown code block fences and surrounding whitespace from JSON responses."""
+    """Strip optional markdown code block fences and surrounding whitespace."""
     text = raw.strip()
-    if text.startswith("```json"):
-        text = text[7:]
-    elif text.startswith("```"):
-        text = text[3:]
-    if text.endswith("```"):
-        text = text[:-3]
+    if "```json" in text:
+        start = text.find("```json") + 7
+        end = text.find("```", start)
+        if end != -1:
+            text = text[start:end].strip()
+    elif "```" in text:
+        start = text.find("```") + 3
+        end = text.find("```", start)
+        if end != -1:
+            text = text[start:end].strip()
+
+    first_brace = text.find("{")
+    last_brace = text.rfind("}")
+    if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+        text = text[first_brace : last_brace + 1]
+
     return text.strip()
 
 
@@ -598,20 +632,16 @@ class OpenRouterModelGateway:
         self.max_turn_timeout_seconds = max_turn_timeout_seconds
         self._http_transport = http_transport or injected_transport
         self._injected_http_client = http_client
-        self._start_time: float | None = None
         self._last_attempts_made = 0
 
-    def _get_turn_timeout(self) -> float:
-        if self._start_time is None:
-            self._start_time = time.monotonic()
-            remaining = self.total_timeout_seconds
-        else:
-            elapsed = time.monotonic() - self._start_time
-            remaining = self.total_timeout_seconds - elapsed
-
-        if remaining <= 0.5:
-            raise TimeoutError("Overall Temperature Intelligence request deadline exceeded")
-        return min(remaining, self.max_turn_timeout_seconds)
+    def _get_turn_timeout(self, deadline: float | None = None) -> float:
+        """Calculate the remaining turn timeout bounded by request deadline and max turn budget."""
+        if deadline is not None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0.05:
+                raise TimeoutError("Overall Temperature Intelligence request deadline exceeded")
+            return min(remaining, self.max_turn_timeout_seconds)
+        return min(self.total_timeout_seconds, self.max_turn_timeout_seconds)
 
     def _execute_chat_completion(
         self,
@@ -619,6 +649,8 @@ class OpenRouterModelGateway:
         schema_name: str,
         schema_dict: dict[str, Any],
         operation: str,
+        deadline: float | None = None,
+        max_tokens: int = OPENROUTER_DEFAULT_MAX_TOKENS,
     ) -> OpenRouterChatResult:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -627,79 +659,53 @@ class OpenRouterModelGateway:
             "X-Title": "CoolAccess Temperature Intelligence",
         }
 
-        # Step 1: Try strict json_schema payload first
+        request_deadline = (
+            deadline
+            if deadline is not None
+            else (time.monotonic() + self.total_timeout_seconds)
+        )
+
+        schema_json = json.dumps(schema_dict)
+        schema_instruction = (
+            "\n\nIMPORTANT: Respond with ONLY a valid raw JSON object strictly "
+            f"conforming to this JSON schema (no extra text, no markdown):\n{schema_json}"
+        )
+        formatted_messages = list(messages)
+        if formatted_messages:
+            last_m = formatted_messages[-1]
+            formatted_messages[-1] = {
+                "role": last_m.get("role", "user"),
+                "content": (last_m.get("content", "") + schema_instruction),
+            }
+
         current_payload: dict[str, Any] = {
             "model": self.model,
-            "messages": messages,
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": schema_name,
-                    "strict": True,
-                    "schema": schema_dict,
-                },
-            },
-            "max_tokens": 1500,
+            "messages": formatted_messages,
+            "response_format": {"type": "json_object"},
+            "max_tokens": max_tokens,
             "stream": False,
         }
 
         attempts = 0
         last_exc: Exception | None = None
-        schema_fallback_attempted = False
         self._last_attempts_made = 0
 
         while attempts < 2:
-            call_timeout = self._get_turn_timeout()
+            call_timeout = self._get_turn_timeout(deadline=request_deadline)
             attempts += 1
             self._last_attempts_made = attempts
 
             try:
-                request_payload = current_payload
                 resp = asyncio.run(
                     _post_json_with_wall_clock_timeout(
                         url=OPENROUTER_API_URL,
-                        payload=request_payload,
+                        payload=current_payload,
                         headers=headers,
                         timeout_seconds=call_timeout,
                         transport=self._http_transport,
                     )
                 )
                 resp_status_code = resp.status_code
-
-                # Detect 400 Bad Request on json_schema and fallback to json_object mode
-                if (
-                    resp_status_code == 400
-                    and attempts < 2
-                    and not schema_fallback_attempted
-                    and current_payload.get("response_format", {}).get("type") == "json_schema"
-                ):
-                    logger.info(
-                        "OpenRouter provider returned 400 for model=%s on json_schema; "
-                        "retrying immediately using json_object mode with schema in prompt.",
-                        self.model,
-                    )
-                    schema_fallback_attempted = True
-                    schema_instruction = (
-                        "\n\nIMPORTANT: Respond with ONLY a valid raw JSON object strictly "
-                        f"conforming to this JSON schema:\n{json.dumps(schema_dict)}"
-                    )
-                    fallback_messages = list(messages)
-                    if fallback_messages:
-                        last_m = fallback_messages[-1]
-                        fallback_messages[-1] = {
-                            "role": last_m.get("role", "user"),
-                            "content": (last_m.get("content", "") + schema_instruction),
-                        }
-                    current_payload = {
-                        "model": self.model,
-                        "messages": fallback_messages,
-                        "response_format": {"type": "json_object"},
-                        "max_tokens": 1500,
-                        "stream": False,
-                    }
-                    # The format fallback is the second and final provider call for this turn.
-                    continue
-
                 resp.raise_for_status()
                 resp_json = resp.json()
 
@@ -753,51 +759,16 @@ class OpenRouterModelGateway:
                 last_exc = exc
                 status_code = _extract_status_code(exc)
 
-                # Fallback if exception carries status_code 400 on json_schema
-                if (
-                    status_code == 400
-                    and attempts < 2
-                    and not schema_fallback_attempted
-                    and current_payload.get("response_format", {}).get("type") == "json_schema"
-                ):
-                    logger.info(
-                        "OpenRouter 400 exception on json_schema for model=%s; "
-                        "retrying immediately with json_object fallback.",
-                        self.model,
-                    )
-                    schema_fallback_attempted = True
-                    schema_instruction = (
-                        "\n\nIMPORTANT: Respond with ONLY a valid raw JSON object strictly "
-                        f"conforming to this JSON schema:\n{json.dumps(schema_dict)}"
-                    )
-                    fallback_messages = list(messages)
-                    if fallback_messages:
-                        last_m = fallback_messages[-1]
-                        fallback_messages[-1] = {
-                            "role": last_m.get("role", "user"),
-                            "content": (last_m.get("content", "") + schema_instruction),
-                        }
-                    current_payload = {
-                        "model": self.model,
-                        "messages": fallback_messages,
-                        "response_format": {"type": "json_object"},
-                        "max_tokens": 1500,
-                        "stream": False,
-                    }
-                    continue
-
                 is_transient = status_code in (429, 502, 503, 504) or isinstance(
                     exc,
                     (TimeoutError, httpx.TimeoutException, httpx.NetworkError),
                 )
 
                 if attempts == 1 and is_transient:
-                    try:
-                        remaining = self._get_turn_timeout()
-                    except TimeoutError:
+                    rem_after = request_deadline - time.monotonic()
+                    if rem_after <= 1.0:
                         break
 
-                    # Parse bounded backoff, respecting Retry-After header if present
                     backoff = min(OPENROUTER_RETRY_BACKOFF_SECONDS * (1.5 ** (attempts - 1)), 1.5)
                     resp_obj = getattr(exc, "response", None)
                     if resp_obj is not None:
@@ -810,7 +781,7 @@ class OpenRouterModelGateway:
                             except (ValueError, TypeError):
                                 pass
 
-                    if remaining > backoff + 0.5:
+                    if rem_after > backoff + 0.5:
                         time.sleep(backoff)
                         continue
 
@@ -822,12 +793,19 @@ class OpenRouterModelGateway:
     def select_tools(
         self,
         context: GatewayClassificationContext,
+        deadline: float | None = None,
     ) -> GatewayToolSelection | None:
         """Classify municipal inquiry and dynamically select <=4 bounded read-only tools."""
         prompt = build_tool_selection_prompt(context)
 
         messages = [
-            {"role": "system", "content": SYSTEM_POLICY},
+            {
+                "role": "system",
+                "content": (
+                    f"{SYSTEM_POLICY}\n"
+                    "Respond with a raw JSON object strictly conforming to the requested schema."
+                ),
+            },
             {"role": "user", "content": prompt},
         ]
 
@@ -852,6 +830,7 @@ class OpenRouterModelGateway:
                 schema_name="coolaccess_tool_selection",
                 schema_dict=schema_dict,
                 operation="tool_selection",
+                deadline=deadline,
             )
             content_chars = res.response_content_chars
             finish_reason = res.finish_reason
@@ -908,18 +887,21 @@ class OpenRouterModelGateway:
         self,
         context: GatewayPlanContext,
         tool_results: Sequence[ToolExecutionResult],
+        deadline: float | None = None,
     ) -> GatewayAnswerPlan:
         """Generate structured answer plan citing strictly request-local authoritative claims."""
         executed_claims_summary: list[dict[str, Any]] = []
         for tool_res in tool_results:
             for claim in tool_res.claims:
+                display = claim.display_text
+                short_summary = display[:140] + ("..." if len(display) > 140 else "")
                 executed_claims_summary.append(
                     {
                         "claim_id": claim.claim_id,
                         "claim_type": claim.claim_type,
                         "facility_id": claim.facility_id,
                         "alternative_id": claim.alternative_id,
-                        "display_text": claim.display_text,
+                        "summary": short_summary,
                     }
                 )
 
@@ -931,26 +913,47 @@ class OpenRouterModelGateway:
             for t_res in tool_results
         ]
 
+        claims_lines = "\n".join(
+            f"- {c['claim_id']} [{c['claim_type']}]: {c['summary']}"
+            for c in executed_claims_summary
+        )
+
+        valid_fac_list = list(context.available_facility_ids)
         prompt = (
             f"Municipal Inquiry: {context.question}\n"
             f"Selected Intent: {context.intent_code.value}\n"
             f"Executed Tools: {', '.join(tools_used_list)}\n\n"
             "Authoritative Claims Available for Citation:\n"
-            f"{json.dumps(executed_claims_summary, separators=(',', ':'))}\n\n"
-            f"Valid Facility IDs: {list(context.available_facility_ids)}\n\n"
-            "Organize these authoritative claims into an Answer Plan with sections. "
-            "Cite ONLY claim_ids and cited_facility_ids that appear in the list above. "
-            "Do NOT invent new IDs or prose."
+            f"{claims_lines}\n\n"
+            f"Valid Facility IDs for highlights and citations: {valid_fac_list}\n\n"
+            "Organize these authoritative claims into an Answer Plan with sections.\n"
+            "Rules:\n"
+            "- Cite ONLY claim_ids from the list above in ordered_claim_ids.\n"
+            "- cited_facility_ids and requested_highlights must ONLY contain valid "
+            "facility IDs from the list above.\n"
+            "- Do NOT invent new IDs, values, or prose."
         )
 
         messages = [
-            {"role": "system", "content": SYSTEM_POLICY},
+            {
+                "role": "system",
+                "content": (
+                    f"{SYSTEM_POLICY}\n"
+                    "Respond with a raw JSON object strictly conforming to the requested schema."
+                ),
+            },
             {"role": "user", "content": prompt},
         ]
 
+        schema_dict = build_answer_plan_schema(
+            intent_code=context.intent_code,
+            available_claim_ids=context.available_claim_ids,
+            available_facility_ids=context.available_facility_ids,
+        )
+
         t0 = time.monotonic()
         prompt_chars = len(prompt) + len(SYSTEM_POLICY)
-        schema_chars = len(json.dumps(ANSWER_PLAN_SCHEMA))
+        schema_chars = len(json.dumps(schema_dict))
         outcome = "success"
         attempts_made = 0
         finish_reason: str | None = None
@@ -963,8 +966,9 @@ class OpenRouterModelGateway:
             chat_res = self._execute_chat_completion(
                 messages=messages,
                 schema_name="coolaccess_answer_plan",
-                schema_dict=ANSWER_PLAN_SCHEMA,
+                schema_dict=schema_dict,
                 operation="answer_planning",
+                deadline=deadline,
             )
             content_chars = chat_res.response_content_chars
             finish_reason = chat_res.finish_reason
@@ -1036,7 +1040,6 @@ class GeminiModelGateway:
         self.total_timeout_seconds = total_timeout_seconds
         self.max_turn_timeout_seconds = max_turn_timeout_seconds
         self._client: Any = client
-        self._start_time: float | None = None
 
     def _get_client(self) -> Any:
         if not _GENAI_AVAILABLE:
@@ -1045,14 +1048,13 @@ class GeminiModelGateway:
             self._client = genai.Client(api_key=self.api_key)
         return self._client
 
-    def _get_turn_timeout(self) -> float:
-        if self._start_time is None:
-            self._start_time = time.monotonic()
-            remaining = self.total_timeout_seconds
-        else:
-            elapsed = time.monotonic() - self._start_time
-            remaining = self.total_timeout_seconds - elapsed
-
+    def _get_turn_timeout(self, deadline: float | None = None) -> float:
+        request_deadline = (
+            deadline
+            if deadline is not None
+            else (time.monotonic() + self.total_timeout_seconds)
+        )
+        remaining = request_deadline - time.monotonic()
         if remaining < GEMINI_MIN_PROVIDER_TIMEOUT_SECONDS:
             raise TimeoutError(
                 f"Remaining deadline ({remaining:.1f}s) is below minimum provider call timeout "
@@ -1063,6 +1065,7 @@ class GeminiModelGateway:
     def select_tools(
         self,
         context: GatewayClassificationContext,
+        deadline: float | None = None,
     ) -> GatewayToolSelection | None:
         prompt = build_tool_selection_prompt(context)
         schema_dict = build_tool_selection_schema(
@@ -1097,6 +1100,7 @@ class GeminiModelGateway:
         self,
         context: GatewayPlanContext,
         tool_results: Sequence[ToolExecutionResult],
+        deadline: float | None = None,
     ) -> GatewayAnswerPlan:
         executed_claims_summary: list[dict[str, Any]] = []
         for tool_res in tool_results:
@@ -1133,13 +1137,18 @@ class GeminiModelGateway:
 
         try:
             client = self._get_client()
+            schema_dict = build_answer_plan_schema(
+                intent_code=context.intent_code,
+                available_claim_ids=context.available_claim_ids,
+                available_facility_ids=context.available_facility_ids,
+            )
             response = client.models.generate_content(
                 model=self.model,
                 contents=prompt,
                 config={
                     "system_instruction": SYSTEM_POLICY,
                     "response_mime_type": "application/json",
-                    "response_schema": ANSWER_PLAN_SCHEMA,
+                    "response_schema": schema_dict,
                 },
             )
             raw_text = _clean_json_content(response.text or "")

@@ -59,6 +59,7 @@ class WrongPairGateway(FakeModelGateway):
     def select_tools(
         self,
         context: GatewayClassificationContext,
+        deadline: float | None = None,
     ) -> GatewayToolSelection:
         self.select_tools_called += 1
         return GatewayToolSelection(
@@ -79,6 +80,7 @@ class InvalidSemanticGateway(FakeModelGateway):
     def select_tools(
         self,
         context: GatewayClassificationContext,
+        deadline: float | None = None,
     ) -> GatewayToolSelection:
         self.select_tools_called += 1
         return GatewayToolSelection(
