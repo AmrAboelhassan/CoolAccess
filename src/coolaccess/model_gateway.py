@@ -558,6 +558,7 @@ class OpenRouterChatResult:
     completion_tokens: int | None = None
     response_content_chars: int = 0
     http_status_code: int = 200
+    routed_model: str | None = None
 
 
 def _clean_json_content(raw: str) -> str:
@@ -638,6 +639,7 @@ class OpenRouterModelGateway:
                     "schema": schema_dict,
                 },
             },
+            "max_tokens": 1500,
             "stream": False,
         }
 
@@ -692,6 +694,7 @@ class OpenRouterModelGateway:
                         "model": self.model,
                         "messages": fallback_messages,
                         "response_format": {"type": "json_object"},
+                        "max_tokens": 1500,
                         "stream": False,
                     }
                     # The format fallback is the second and final provider call for this turn.
@@ -732,6 +735,9 @@ class OpenRouterModelGateway:
                     if isinstance(ct, int):
                         completion_tokens = ct
 
+                raw_routed_model = resp_json.get("model")
+                routed_model = raw_routed_model if isinstance(raw_routed_model, str) else None
+
                 return OpenRouterChatResult(
                     content=content,
                     attempts_made=attempts,
@@ -740,6 +746,7 @@ class OpenRouterModelGateway:
                     completion_tokens=completion_tokens,
                     response_content_chars=len(content),
                     http_status_code=resp_status_code,
+                    routed_model=routed_model,
                 )
 
             except Exception as exc:
@@ -774,6 +781,7 @@ class OpenRouterModelGateway:
                         "model": self.model,
                         "messages": fallback_messages,
                         "response_format": {"type": "json_object"},
+                        "max_tokens": 1500,
                         "stream": False,
                     }
                     continue
@@ -928,7 +936,7 @@ class OpenRouterModelGateway:
             f"Selected Intent: {context.intent_code.value}\n"
             f"Executed Tools: {', '.join(tools_used_list)}\n\n"
             "Authoritative Claims Available for Citation:\n"
-            f"{json.dumps(executed_claims_summary, indent=2)}\n\n"
+            f"{json.dumps(executed_claims_summary, separators=(',', ':'))}\n\n"
             f"Valid Facility IDs: {list(context.available_facility_ids)}\n\n"
             "Organize these authoritative claims into an Answer Plan with sections. "
             "Cite ONLY claim_ids and cited_facility_ids that appear in the list above. "

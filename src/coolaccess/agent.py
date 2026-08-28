@@ -1987,6 +1987,132 @@ def _build_deterministic_fallback_response(
     )
 
 
+CANONICAL_PRESET_INQUIRIES: frozenset[str] = frozenset(
+    {
+        "why was dc_135 selected instead of dc_148 at 20:00 utc?",
+        "why was dc_135 selected instead of dc_148 at 20:00 utc",
+        "why was dc_148 selected instead of dc_135 at 16:00 utc?",
+        "why was dc_148 selected instead of dc_135 at 16:00 utc",
+        "compare dynamic allocation against the static baseline",
+        "compare dynamic allocation against the static baseline.",
+        "explain diurnal heat transition",
+        "explain diurnal heat transition.",
+        "what changed in the prepared thermal pattern between 16:00 and 20:00 utc?",
+        "what changed in the prepared thermal pattern between 16:00 and 20:00 utc",
+        "show heat vulnerability profile for dc_135",
+        "show heat vulnerability profile for dc_135.",
+    }
+)
+
+
+def _try_resolve_deterministic_preset_selection(
+    question: str,
+    explicit_facility_ids: Sequence[str],
+    current_timestamp: str,
+    baseline_timestamp: str,
+) -> GatewayToolSelection | None:
+    """Attempt unambiguous deterministic Turn-1 resolution for recognized preset inquiries.
+
+    Returns a valid GatewayToolSelection ONLY if the question strictly matches a supported
+    canonical deterministic preset pattern.
+    Returns None for all free-form, custom, or variant inquiries, preserving the full 2-turn
+    LLM path.
+    """
+    q_clean = question.strip().lower()
+    if q_clean not in CANONICAL_PRESET_INQUIRIES:
+        return None
+
+    # Timestamp-bearing presets are only canonical for the matching request
+    # context. A stale UI question/request pair must take the normal Turn-1 path.
+    if " at 20:00 utc" in q_clean and current_timestamp != "20:00":
+        return None
+    if " at 16:00 utc" in q_clean and current_timestamp != "16:00":
+        return None
+    if "between 16:00 and 20:00 utc" in q_clean and (
+        baseline_timestamp != "16:00" or current_timestamp != "20:00"
+    ):
+        return None
+
+    # 1. Preset Replacement Pair
+    if (
+        "selected instead of" in q_clean or "replace" in q_clean
+    ) and len(explicit_facility_ids) == 2:
+        incumbent = explicit_facility_ids[0]
+        alternative = explicit_facility_ids[1]
+        return GatewayToolSelection(
+            intent_code=IntentCode.REPLACEMENT_RATIONALE,
+            tool_calls=(
+                ToolCall(
+                    tool_name=ToolName.GET_REPLACEMENT_EVIDENCE,
+                    facility_id=incumbent,
+                    alternative_id=alternative,
+                ),
+                ToolCall(
+                    tool_name=ToolName.GET_HEAT_VULNERABILITY_PROFILE,
+                    facility_id=incumbent,
+                ),
+                ToolCall(
+                    tool_name=ToolName.GET_HEAT_VULNERABILITY_PROFILE,
+                    facility_id=alternative,
+                ),
+                ToolCall(tool_name=ToolName.GET_ALLOCATION_PLAN),
+            ),
+        )
+
+    # 2. Preset Baseline Comparison
+    if "static baseline" in q_clean or "compare dynamic allocation" in q_clean:
+        return GatewayToolSelection(
+            intent_code=IntentCode.BASELINE_COMPARISON,
+            tool_calls=(
+                ToolCall(
+                    tool_name=ToolName.GET_BASELINE_COMPARISON,
+                    baseline_type="static_allocation",
+                ),
+                ToolCall(tool_name=ToolName.GET_ALLOCATION_PLAN),
+                ToolCall(
+                    tool_name=ToolName.GET_DIURNAL_THERMAL_PROFILE,
+                    target_timestamp=current_timestamp,
+                ),
+            ),
+        )
+
+    # 3. Preset Diurnal Heat Transition
+    if (
+        "diurnal heat transition" in q_clean
+        or "thermal pattern between 16:00 and 20:00" in q_clean
+    ):
+        return GatewayToolSelection(
+            intent_code=IntentCode.DIURNAL_HEAT_TRANSITION,
+            tool_calls=(
+                ToolCall(
+                    tool_name=ToolName.GET_DIURNAL_HEAT_TRANSITION,
+                    target_timestamp=current_timestamp,
+                ),
+                ToolCall(
+                    tool_name=ToolName.GET_DIURNAL_THERMAL_PROFILE,
+                    target_timestamp=current_timestamp,
+                ),
+                ToolCall(tool_name=ToolName.GET_ALLOCATION_PLAN),
+            ),
+        )
+
+    # 4. Preset Heat Vulnerability Profile
+    if "heat vulnerability profile" in q_clean and len(explicit_facility_ids) == 1:
+        target_fac = explicit_facility_ids[0]
+        return GatewayToolSelection(
+            intent_code=IntentCode.HEAT_VULNERABILITY_EXPLANATION,
+            tool_calls=(
+                ToolCall(
+                    tool_name=ToolName.GET_HEAT_VULNERABILITY_PROFILE,
+                    facility_id=target_fac,
+                ),
+                ToolCall(tool_name=ToolName.GET_ALLOCATION_PLAN),
+            ),
+        )
+
+    return None
+
+
 def generate_heat_brief(
     request: HeatBriefRequest,
     scenario_bundle: ScenarioBundle,
@@ -2088,19 +2214,43 @@ def generate_heat_brief(
         k=request.k,
     )
 
-    try:
-        tool_selection = gateway.select_tools(classification_context)
-    except Exception as exc:
-        logger.warning("Gateway tool selection failed: category=gateway_exception")
-        return deterministic_fallback(
-            _extract_safe_fallback_reason(exc, FALLBACK_REASON_GATEWAY_SELECTION_FAILED)
+    is_live_gateway = getattr(
+        gateway, "supports_turn1_bypass", False
+    ) or type(gateway).__name__ in (
+        "OpenRouterModelGateway",
+        "GeminiModelGateway",
+    )
+    deterministic_selection = (
+        _try_resolve_deterministic_preset_selection(
+            request.question,
+            explicit_facility_ids,
+            request.timestamp,
+            request.baseline_timestamp,
         )
+        if is_live_gateway
+        else None
+    )
 
-    # A model returning no supported plan is a provider/planning failure, not proof that a
-    # deterministically in-scope question is unsupported.
-    if tool_selection is None:
-        return deterministic_fallback(FALLBACK_REASON_TOOL_SELECTION_INVALID)
+    if deterministic_selection is not None:
+        tool_selection = deterministic_selection
+    else:
+        try:
+            raw_tool_selection = gateway.select_tools(classification_context)
+        except Exception as exc:
+            logger.warning("Gateway tool selection failed: category=gateway_exception")
+            return deterministic_fallback(
+                _extract_safe_fallback_reason(exc, FALLBACK_REASON_GATEWAY_SELECTION_FAILED)
+            )
 
+        # A model returning no supported plan is a provider/planning failure, not proof that a
+        # deterministically in-scope question is unsupported.
+        if raw_tool_selection is None:
+            return deterministic_fallback(FALLBACK_REASON_TOOL_SELECTION_INVALID)
+
+        tool_selection = raw_tool_selection
+
+    # Deterministic bypass plans cross the same semantic trust boundary as
+    # model-generated selections before authoritative evidence planning.
     selection_issue = validate_tool_selection_semantics(
         tool_selection,
         available_facility_ids=scenario_bundle.get_facility_ids(),
