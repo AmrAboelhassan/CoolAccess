@@ -1,0 +1,160 @@
+{
+  "manifest_version": "1.0",
+  "created_at_utc": "2026-08-28T13:36:38.518498+00:00",
+  "benchmark_date": "2024-07-16",
+  "planned_acquisitions_count": 5,
+  "successful_acquisitions_count": 5,
+  "failed_acquisitions_count": 0,
+  "pre_credit_telemetry": {
+    "api_key": "[REDACTED]",
+    "subscription_id": "[REDACTED]",
+    "plan_details": {
+      "plan_type": "Hackathon",
+      "cycle_type": "Hackathon",
+      "subscription_start_date": "Aug 18, 2026",
+      "billing_period": "Aug 18, 2026 \u2013 Sep 22, 2026",
+      "active": true,
+      "credits_reset_date": "Sep 22, 2026"
+    },
+    "api_key_details": "[REDACTED]",
+    "credit_summary": {
+      "total_available_credits": 2000000,
+      "cycle_credits_used": 160360,
+      "cycle_remaining_credits": 1839640,
+      "cycle_usage_percentage": 8.0,
+      "total_credits_used": 160360,
+      "total_remaining_credits": 1839640
+    },
+    "activity_breakdown": [
+      {
+        "name": "Heatmap Generation",
+        "credits": 160360,
+        "count": 38,
+        "percentage": 8.02
+      },
+      {
+        "name": "Unused Credits",
+        "credits": 1839640,
+        "count": 0,
+        "percentage": 91.98
+      }
+    ],
+    "total_credits_used": 160360,
+    "billing_cycle": {
+      "start_date": "2026-08-18T15:02:46.928851+00:00",
+      "end_date": "2026-09-22T15:02:46.928643+00:00",
+      "credits_reset_date": "2026-09-22T15:02:46.928643+00:00"
+    }
+  },
+  "post_credit_telemetry": {
+    "api_key": "[REDACTED]",
+    "subscription_id": "[REDACTED]",
+    "plan_details": {
+      "plan_type": "Hackathon",
+      "cycle_type": "Hackathon",
+      "subscription_start_date": "Aug 18, 2026",
+      "billing_period": "Aug 18, 2026 \u2013 Sep 22, 2026",
+      "active": true,
+      "credits_reset_date": "Sep 22, 2026"
+    },
+    "api_key_details": "[REDACTED]",
+    "credit_summary": {
+      "total_available_credits": 2000000,
+      "cycle_credits_used": 177240,
+      "cycle_remaining_credits": 1822760,
+      "cycle_usage_percentage": 8.9,
+      "total_credits_used": 177240,
+      "total_remaining_credits": 1822760
+    },
+    "activity_breakdown": [
+      {
+        "name": "Heatmap Generation",
+        "credits": 177240,
+        "count": 42,
+        "percentage": 8.86
+      },
+      {
+        "name": "Unused Credits",
+        "credits": 1822760,
+        "count": 0,
+        "percentage": 91.14
+      }
+    ],
+    "total_credits_used": 177240,
+    "billing_cycle": {
+      "start_date": "2026-08-18T15:02:46.928851+00:00",
+      "end_date": "2026-09-22T15:02:46.928643+00:00",
+      "credits_reset_date": "2026-09-22T15:02:46.928643+00:00"
+    }
+  },
+  "acquired_snapshots": [
+    {
+      "utc_label": "14:00Z",
+      "local_label": "10:00 EDT",
+      "filename": "dc_100m_20240716_1400Z.json",
+      "activity_id": "38fca794-6437-47f1-b438-ef979a0c2e44",
+      "tile_count": 1452,
+      "min_temperature_c": 38.3449,
+      "max_temperature_c": 38.7172,
+      "spread_c": 0.3723,
+      "status": "REUSED_PROBE"
+    },
+    {
+      "utc_label": "16:00Z",
+      "local_label": "12:00 EDT",
+      "filename": "dc_100m_20240716_1600Z.json",
+      "activity_id": "c47857f1-d2eb-4837-ae6e-c57a9cddf489",
+      "tile_count": 1452,
+      "min_temperature_c": 38.1288,
+      "max_temperature_c": 38.5982,
+      "spread_c": 0.4694,
+      "submit_latency_s": 1.429,
+      "total_latency_s": 30.191,
+      "poll_iterations": 7,
+      "status": "ACQUIRED"
+    },
+    {
+      "utc_label": "18:00Z",
+      "local_label": "14:00 EDT",
+      "filename": "dc_100m_20240716_1800Z.json",
+      "activity_id": "6af12906-3821-4fa0-97ae-a84d1cbc94ae",
+      "tile_count": 1452,
+      "min_temperature_c": 37.2243,
+      "max_temperature_c": 37.5242,
+      "spread_c": 0.2999,
+      "submit_latency_s": 2.417,
+      "total_latency_s": 27.297,
+      "poll_iterations": 6,
+      "status": "ACQUIRED"
+    },
+    {
+      "utc_label": "20:00Z",
+      "local_label": "16:00 EDT",
+      "filename": "dc_100m_20240716_2000Z.json",
+      "activity_id": "ce463bc7-9fd1-4aba-ba9d-a505e1400b41",
+      "tile_count": 1452,
+      "min_temperature_c": 35.6998,
+      "max_temperature_c": 36.6006,
+      "spread_c": 0.9008,
+      "submit_latency_s": 1.705,
+      "total_latency_s": 32.523,
+      "poll_iterations": 8,
+      "status": "ACQUIRED"
+    },
+    {
+      "utc_label": "22:00Z",
+      "local_label": "18:00 EDT",
+      "filename": "dc_100m_20240716_2200Z.json",
+      "activity_id": "c26f2728-763b-4133-8233-ba8f0166b543",
+      "tile_count": 1452,
+      "min_temperature_c": 31.1328,
+      "max_temperature_c": 31.7335,
+      "spread_c": 0.6007,
+      "submit_latency_s": 1.621,
+      "total_latency_s": 21.694,
+      "poll_iterations": 5,
+      "status": "ACQUIRED"
+    }
+  ],
+  "failures": []
+}

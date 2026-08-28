@@ -1,0 +1,16 @@
+{
+  "scenario_id": "dc_downtown_capitol_hill_750m_20240716",
+  "city_name": "Washington, DC",
+  "scenario_title": "DC Downtown / Capitol Hill / SW Waterfront Cooling Priority (2024-07-16 Expansion)",
+  "historical_date": "2024-07-16",
+  "timezone": "America/New_York",
+  "resource_budget_k": 3,
+  "primary_catchment_radius_meters": 750,
+  "available_timestamps_utc": [
+    "14:00",
+    "16:00",
+    "18:00",
+    "20:00",
+    "22:00"
+  ]
+}

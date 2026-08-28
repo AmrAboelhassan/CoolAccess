@@ -55,6 +55,25 @@ CoolAccess includes a fully validated, provenance-tracked empirical scenario for
 
 ---
 
+## Multi-Day FortyGuard Benchmark
+
+- **Canonical Production Demo:** July 15, 2024 (Washington, DC, 14:00–22:00 UTC)
+- **Additional Offline Benchmark:** July 16, 2024 (Washington, DC, 14:00–22:00 UTC)
+
+Beyond the canonical July 15 production demo, CoolAccess was replayed offline against a second official FortyGuard historical day (July 16, 2024) using the same six facilities, Census population layer, catchments, K=3 budget, normalization, and deterministic optimizer with no parameter retuning.
+
+At 20:00 UTC, the July 16 optimum retained DC_089, DC_148, and DC_166 and matched the static baseline, while exceeding the naive thermal baseline by 8,403.26 heat-weighted demand units (+34.69%). In contrast, July 15 produced the DC_148 → DC_135 transition at the same timestamp.
+
+See the offline reproducible benchmark evaluation report: [`docs/MULTI_DAY_BENCHMARK_EVALUATION.md`](docs/MULTI_DAY_BENCHMARK_EVALUATION.md).
+
+*Benchmark Scope & Limitations:*
+- Prepared historical data only; zero live weather feeds or forecast modeling.
+- Two historical days evaluated; no claim of statistical generalization across all weather regimes or seasons.
+- Population counts reflect decennial residential headcounts (2020 Census Table P1), not real-time foot-traffic.
+- Decision support proxy; does not represent medical, physiological, or health outcome claims.
+
+---
+
 ## 3. Architecture & Role of AI
 
 ```

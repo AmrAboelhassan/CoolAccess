@@ -53,3 +53,6 @@ desktop.ini
 # Local logs & temporary output
 *.log
 *.tmp
+
+# Raw expansion provider responses (kept local-only for audit provenance)
+data/expansion_20240716/provider_raw/
