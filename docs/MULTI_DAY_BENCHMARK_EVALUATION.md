@@ -127,7 +127,7 @@ Evaluating allocation behavior across 9 geographic catchment radii under fixed b
 
 ---
 
-## 8. Independent Robustness & Ablation Checks
+## 8. Offline Allocation Robustness & Ablation Checks
 
 ### 8.1 Population-Only vs FortyGuard Thermal-Weighted Ablation
 
