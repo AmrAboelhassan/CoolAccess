@@ -31,14 +31,16 @@ import pydantic
 from dotenv import load_dotenv
 
 try:
-    from google import genai
-    from google.genai import errors
+    from google import genai as _genai
+    from google.genai import errors as _errors
 
+    genai: Any = _genai
+    errors: Any = _errors
     _GENAI_AVAILABLE = True
 except ImportError:
     _GENAI_AVAILABLE = False
-    genai = None  # type: ignore[assignment]
-    errors = None  # type: ignore[assignment]
+    genai = None
+    errors = None
 
 from coolaccess.agent import (
     VALID_FACILITY_IDS,
