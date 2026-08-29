@@ -52,5 +52,9 @@ packages = ["coolaccess"]
 explicit_package_bases = true
 mypy_path = ["src"]
 
+[[tool.mypy.overrides]]
+module = ["google", "google.genai", "google.genai.*"]
+ignore_missing_imports = true
+
 [tool.vercel]
 entrypoint = "src.coolaccess.server:app"

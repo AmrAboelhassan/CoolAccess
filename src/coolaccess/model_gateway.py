@@ -37,8 +37,8 @@ try:
     _GENAI_AVAILABLE = True
 except ImportError:
     _GENAI_AVAILABLE = False
-    genai = None  # type: ignore
-    errors = None  # type: ignore
+    genai = None  # type: ignore[assignment]
+    errors = None  # type: ignore[assignment]
 
 from coolaccess.agent import (
     VALID_FACILITY_IDS,
