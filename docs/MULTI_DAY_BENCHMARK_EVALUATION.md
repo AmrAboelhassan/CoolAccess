@@ -38,7 +38,8 @@ All snapshots were acquired directly from the official FortyGuard tOS Enterprise
 | **`22:00Z`** | ~18:00 EDT | `c26f2728-763b-4133-8233-ba8f0166b543` | 1,452 | 31.133 | 31.395 | 31.733 | 0.601 °C |
 
 * **Credits Consumed for July 16 CoolAccess:** 21,100 credits (5 single-hour snapshots × 4,220 credits/query).
-* **Storage Location:** `CoolAccess/data/expansion_20240716/` (completely isolated from production).
+* **Provenance & Reproducibility Note:** Canonical July 15 is reproducible from committed prepared benchmark artifacts in the repository. July 16 provides an auditable acquisition manifest (`acquisition_manifest.json`) and deterministic replay workflow; raw FortyGuard provider payloads are retained local-only to maintain repository hygiene.
+* **Cross-Day Normalization:** Cross-day evaluation retains the canonical July 15 robust P1/P99 normalization anchors (`p1_lower_anchor_c = 32.022°C`, `p99_upper_anchor_c = 37.699°C`) for calibration consistency across evaluation days. Normalized thermal-priority values outside `[32.022°C, 37.699°C]` are clamped to `[0.0, 1.0]`.
 
 ---
 
@@ -136,3 +137,5 @@ Every single one-for-one substitution of an optimal facility with an unselected 
 2. **Prepared Data Replay:** Replays historical FortyGuard data; does not ingest live feeds or weather forecast models.
 3. **Census Population Representation:** Population figures reflect residential decennial Census headcounts (usual residents from 2020 Table P1), not real-time pedestrian or commercial foot-traffic.
 4. **No Medical / Health Outcome Claims:** Optimizes covered heat-weighted demand units; does not claim health risk reduction, medical protection, or physiological safety outcomes.
+5. **Operational Eligibility Scope:** Benchmark scope treats all six locked candidate public facilities as operationally eligible. Operating hours, current activation status, and facility service capacity are not modeled.
+6. **Geodesic Centroid Catchment Proxy:** Proximity is modeled as a 750m geodesic facility-to-Census-block-centroid catchment proxy, not individualized walking-network pedestrian routing.

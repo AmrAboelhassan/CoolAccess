@@ -206,7 +206,7 @@ export const ReplacementDrawer: React.FC<ReplacementDrawerProps> = ({
             <p className="exp-paragraph">{primary.explanation}</p>
 
             <div className="exp-takeaway">
-              <strong>Objective definition:</strong> CoolAccess multiplies 2020 Census population by a normalized thermal-priority weight, then maximizes union coverage under the fixed K=3 facility-count budget and 750m catchment rule.
+              <strong>Objective definition:</strong> CoolAccess multiplies 2020 Census population by a normalized thermal-priority weight, then maximizes union coverage under the fixed K=3 facility-count budget and 750m geodesic centroid catchment rule (candidate facilities are treated as equally eligible; facility hours and service capacities are not modeled).
             </div>
           </div>
         </div>

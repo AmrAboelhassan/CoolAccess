@@ -35,7 +35,10 @@ export const DisclosuresFooter: React.FC<DisclosuresFooterProps> = ({ scenario }
           </div>
           <ul className="footer-list">
             <li>
-              <strong>Accessibility:</strong> 750m geodesic proximity catchment proxies; not individualized pedestrian route navigation.
+              <strong>Accessibility:</strong> 750m geodesic facility-to-Census-block-centroid catchment proxy; not walking-network travel distance.
+            </li>
+            <li>
+              <strong>Operational Eligibility:</strong> Benchmark scope: all six locked candidate facilities are treated as operationally eligible. Operating hours, current activation status, and facility service capacity are not modeled.
             </li>
             <li>
               <strong>Population Scope:</strong> Permanent Decennial Census residential population; does not model transient pedestrian occupancy.

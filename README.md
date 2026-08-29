@@ -67,6 +67,10 @@ At 20:00 UTC, the July 16 optimum retained DC_089, DC_148, and DC_166 and matche
 See the offline reproducible benchmark evaluation report: [`docs/MULTI_DAY_BENCHMARK_EVALUATION.md`](docs/MULTI_DAY_BENCHMARK_EVALUATION.md).
 
 *Benchmark Scope & Limitations:*
+- Operational eligibility scope: all six locked candidate facilities are treated as operationally eligible. Operating hours, current activation status, and facility service capacity are not modeled.
+- Accessibility model: 750m geodesic facility-to-Census-block-centroid catchment proxy; not walking-network travel distance.
+- Cross-day normalization: July 16 evaluation retains the canonical July 15 robust P1/P99 normalization anchors ([32.022°C, 37.699°C]) for calibration consistency; values outside are clamped to [0,1].
+- Reproducibility: Canonical July 15 is reproducible from committed prepared benchmark artifacts in the repository; July 16 provides an auditable acquisition manifest and deterministic replay workflow with raw FortyGuard provider payloads retained local-only.
 - Prepared historical data only; zero live weather feeds or forecast modeling.
 - Two historical days evaluated; no claim of statistical generalization across all weather regimes or seasons.
 - Population counts reflect decennial residential headcounts (2020 Census Table P1), not real-time foot-traffic.
