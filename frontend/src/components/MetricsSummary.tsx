@@ -103,7 +103,7 @@ export const MetricsSummary: React.FC<MetricsSummaryProps> = ({
           </div>
 
           <div className="metric-big-num">
-            {selectedCount} / {budgetK} <span className="text-sm font-normal">Active Sites</span>
+            {selectedCount} / {budgetK} <span className="text-sm font-normal">Selected Sites</span>
           </div>
 
           <div className="metric-detail-row">

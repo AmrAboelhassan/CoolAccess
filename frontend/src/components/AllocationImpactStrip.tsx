@@ -46,6 +46,8 @@ export const AllocationImpactStrip: React.FC<AllocationImpactStripProps> = ({
     allocation.coverage_metrics.covered_population - allocation.static_baseline.covered_population;
   const naiveGain = allocation.naive_baseline.absolute_gain;
   const transitionTimestamp = primaryTransition?.future_timestamp_utc;
+  const populationOnlySet = staticIds.join(', ');
+  const thermalWeightedSet = dynamicIds.join(', ');
   const isPrimaryTransition =
     hasSetChange && transitionTimestamp !== undefined && allocation.timestamp === transitionTimestamp;
   const isPostTransitionRetention =
@@ -66,13 +68,13 @@ export const AllocationImpactStrip: React.FC<AllocationImpactStripProps> = ({
     : `Authoritative K=${allocation.k} set is unchanged from the ${allocation.baseline_timestamp} reference.`;
 
   const impactNarrative = isPrimaryTransition
-    ? `Prepared FortyGuard thermal-priority weights at ${allocation.timestamp} UTC changed the evaluated heat-weighted objective. Under the same K=${allocation.k} facility-count constraint, the deterministic optimizer changed the retained reference set.`
+    ? `At ${allocation.timestamp} UTC, the population-only ablation retains {${populationOnlySet}}, while FortyGuard-weighted exact allocation selects {${thermalWeightedSet}}. Under the same K=${allocation.k} constraint, the swap does not occur without thermal weighting.`
     : isPostTransitionRetention
     ? `At ${allocation.timestamp} UTC, the deterministic optimizer retains the post-transition facility set. It remains different from the ${allocation.baseline_timestamp} reference; this is not a claim that the allocation changed again at this timestamp.`
     : hasSetChange
     ? `At ${allocation.timestamp} UTC, the authoritative facility set differs from the ${allocation.baseline_timestamp} reference under the same K=${allocation.k} constraint.`
     : currentTimestamp === allocation.baseline_timestamp
-    ? `This prepared FortyGuard snapshot establishes the reference K=${allocation.k} allocation. Use the 20:00 demo step to inspect the measured temperature-driven allocation change.`
+    ? `This prepared snapshot establishes the reference set. At ${transitionTimestamp ?? '20:00'}, inspect the exact facility swap, +23.68% versus static, the naive tie, and the 3,519-resident trade-off.`
     : `The prepared temperature snapshot was re-evaluated, while the authoritative K=${allocation.k} facility set remained unchanged from the reference.`;
 
   const handlePrimaryAction = () => {
@@ -97,9 +99,11 @@ export const AllocationImpactStrip: React.FC<AllocationImpactStripProps> = ({
           <span className="allocation-impact-kicker">Decision proof</span>
           <h2 id="allocation-impact-heading" className="allocation-impact-title">
             {isPrimaryTransition
-              ? 'Because temperature evidence changed, the K=3 allocation changed'
+              ? `FortyGuard weighting changes the ${allocation.timestamp} K=${allocation.k} optimum`
               : hasSetChange
               ? `The K=${allocation.k} allocation differs from the ${allocation.baseline_timestamp} reference`
+              : currentTimestamp === allocation.baseline_timestamp && transitionTimestamp
+              ? `K=${allocation.k} of ${facilities.length}: inspect the ${transitionTimestamp} facility swap`
               : 'Reference allocation for the temperature-driven comparison'}
           </h2>
           <p className="allocation-impact-narrative">{impactNarrative}</p>

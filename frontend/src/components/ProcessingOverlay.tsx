@@ -86,10 +86,10 @@ export const ProcessingOverlay: React.FC<ProcessingOverlayProps> = ({
           <div className="processing-brand-text">
             <div className="processing-brand-title-row">
               <span className="processing-title">CoolAccess</span>
-              <span className="processing-tag">TEMPERATURE DECISION PIPELINE</span>
+              <span className="processing-tag">DETERMINISTIC ALLOCATION PIPELINE</span>
             </div>
             <span className="processing-sub">
-              Municipal Heat Resilience & Spatial Decision Platform
+              Exact K-Constrained Municipal Cooling Allocation
             </span>
           </div>
         </div>

@@ -223,7 +223,7 @@ export const MapView: React.FC<MapViewProps> = ({
                       }`}
                     >
                       {isSelected
-                        ? `ACTIVE ALLOCATION (K=${allocation?.k ?? 3})`
+                        ? `SELECTED PRIORITY (K=${allocation?.k ?? 3})`
                         : 'ELIGIBLE / UNSELECTED'}
                     </span>
                   </div>

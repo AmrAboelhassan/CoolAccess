@@ -17,10 +17,10 @@ export const Header: React.FC<HeaderProps> = ({ scenario, currentTimestamp }) =>
         <div className="brand-text">
           <div className="brand-title-row">
             <h1 className="brand-title">CoolAccess</h1>
-            <span className="system-pill">TEMPERATURE AI PLATFORM</span>
+            <span className="system-pill">EXACT K-CONSTRAINED ALLOCATION</span>
           </div>
           <p className="brand-subtitle">
-            Which three municipal cooling facilities should be active as neighborhood temperatures shift?
+            Which 3 of 6 municipal cooling facilities should receive priority as neighborhood temperatures shift?
           </p>
           <div className="brand-authority-line">
             <span>
@@ -64,9 +64,9 @@ export const Header: React.FC<HeaderProps> = ({ scenario, currentTimestamp }) =>
             <span>Scenario Horizon</span>
           </div>
           <div className="meta-value">
-            {scenario?.historical_date || '2024-07-15'} (Heatwave)
+            {scenario?.historical_date || '2024-07-15'} (Prepared benchmark)
           </div>
-          <div className="meta-sub">Active Horizon: {currentTimestamp} UTC</div>
+          <div className="meta-sub">Selected timestamp: {currentTimestamp} UTC</div>
         </div>
 
         <div className="meta-card highlight">
@@ -75,10 +75,10 @@ export const Header: React.FC<HeaderProps> = ({ scenario, currentTimestamp }) =>
             <span>Resource Constraint</span>
           </div>
           <div className="meta-value text-accent">
-            K = {scenario?.resource_budget_k ?? 3} Active Facilities
+            K = {scenario?.resource_budget_k ?? 3} of {scenario?.candidate_facilities?.length ?? 6} Receive Priority
           </div>
           <div className="meta-sub">
-            {scenario?.catchment_radius_meters ?? 750}m Geographic Catchment
+            {scenario?.catchment_radius_meters ?? 750}m Geodesic Centroid Proxy
           </div>
         </div>
 

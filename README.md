@@ -1,15 +1,14 @@
 # CoolAccess
 
-> CoolAccess helps municipal heat-response teams decide which existing public facilities should receive limited activation or extended-service priority as hyperlocal heat shifts across neighborhoods.
+> **Where should scarce municipal cooling priority go when only 3 of 6 candidates can be selected?**
 
-**Dynamic Cooling Resource Allocation**
+[Live demo](https://cool-access.vercel.app/) · [Video](https://youtu.be/07QAWacvNLo) · Offline evidence: `python scripts/run_allocation_robustness_evidence.py`
 
-CoolAccess is a deterministic municipal decision-support prototype built for the FortyGuard Global AI Hackathon 2026. It converts FortyGuard hyperlocal thermal intelligence, licensed residential population data, existing public facility locations, and a fixed resource budget constraint into a mathematically verified maximum-coverage recommendation.
+CoolAccess combines prepared FortyGuard thermal evidence, 2020 Census residential population, six existing public facilities, and a fixed `K=3` budget in a **deterministic exact allocation**. The optimizer—not the optional AI—selects the authoritative facility set; AI only explains validated evidence.
 
-The product's central proof is:
+**Canonical July 15 proof:** the priority set changes from `{DC_089, DC_148, DC_166}` at 16:00 UTC to `{DC_089, DC_135, DC_166}` at 20:00 UTC. The 20:00 objective is **+23.68% versus the retained static set**; the naive hottest-catchment baseline ties the optimum, and the dynamic set covers **3,519 fewer Census residents**. Without thermal weighting, the 20:00 facility swap does not occur.
 
-> Same city. Same facilities. Same population. Same resource budget.  
-> Different hyperlocal heat -> different optimal allocation.
+**Operational boundary:** all six candidates are treated as eligible; operating hours, current activation state, and service capacity are not modeled. Accessibility is a 750m geodesic facility-to-Census-block-centroid proxy—not walking-network routing.
 
 ---
 
@@ -48,7 +47,7 @@ CoolAccess includes a fully validated, provenance-tracked empirical scenario for
 * **Official Population:** 2020 U.S. Census Bureau Decennial Census Redistricting Data (Table P1: `100,389` residents across `887` retained Census blocks, mapped 100% to FortyGuard grid cells).
 * **Thermal Evidence:** 5 diurnal FortyGuard street-level thermal snapshots evaluated across the internal 100m analysis grid on July 15, 2024 (`14:00`, `16:00`, `18:00`, `20:00`, `22:00` UTC).
 * **Candidate Facilities:** 6 public DC libraries and recreation centers from DC Open Data / OCTO under fixed budget $K = 3$.
-* **Empirical Finding:** As midday heat (`16:00 UTC`) transitions to late afternoon (`20:00 UTC`), optimal activation dynamically shifts from `{DC_089, DC_148, DC_166}` to `{DC_089, DC_135, DC_166}` (activating MLK Jr. Memorial Library `DC_135` over Northeast Library `DC_148`).
+* **Empirical Finding:** As midday heat (`16:00 UTC`) transitions to late afternoon (`20:00 UTC`), the optimal priority set changes from `{DC_089, DC_148, DC_166}` to `{DC_089, DC_135, DC_166}` (selecting MLK Jr. Memorial Library `DC_135` over Northeast Library `DC_148`).
 * **Measured Static-Baseline Gain at 20:00:** `8,328.93 - 6,734.48 = 1,594.45` additional heat-weighted demand units, or **`23.68%`**, at the locked 750m radius.
 * **Naive Baseline at 20:00:** The naive hottest-catchment baseline selects the same set and produces the same objective as the dynamic optimum, so the gain over naive is **zero** at this timestamp.
 * **Population Trade-off at 20:00:** Dynamic resident coverage is `38,357`, versus `41,876` for the retained 16:00 set: `3,519` fewer residents covered while the heat-weighted objective is higher.
@@ -225,7 +224,7 @@ Do not expose the key to the frontend. Gemini is not a selectable packaged runti
 
 ## 7. Product Boundary
 
-CoolAccess has one primary user: a municipal heat-response, resilience, emergency-management, or public-facilities team. It supports one decision: which eligible existing facilities should receive limited activation or extended-service priority under a fixed facility constraint.
+CoolAccess has one primary user: a municipal heat-response, resilience, emergency-management, or public-facilities team. It supports one decision: which eligible existing facilities should receive priority under a fixed facility-count constraint.
 
 P0 is not a general smart-city platform, a public cooling-center finder, a public-health prediction system, a facility operations system, or a mobile-resource dispatch product. It does not estimate degrees cooled, injuries prevented, lives saved, medical safety, or guaranteed outcomes. Its metrics are scenario-specific planning and geographic-accessibility proxies.
 

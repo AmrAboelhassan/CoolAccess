@@ -162,7 +162,7 @@ export function App() {
                 {loading && <span className="system-pill" style={{ color: '#f59e0b', borderColor: '#f59e0b' }}>SYNCHRONIZING...</span>}
                 <span className="map-active-badge">
                   {allocation
-                    ? `Active Dataset: ${allocation.timestamp} UTC`
+                    ? `Displayed Dataset: ${allocation.timestamp} UTC`
                     : `Loading Dataset: ${currentTimestamp} UTC`}
                 </span>
               </div>

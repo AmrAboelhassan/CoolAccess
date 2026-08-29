@@ -41,7 +41,7 @@ export const FacilityList: React.FC<FacilityListProps> = ({
       <div className="facility-panel-header">
         <h3 className="section-title">Facility Allocation Status</h3>
         <span className="allocation-count-tag">
-          {activeFacilities.length} Active / {facilities.length} Total
+          {activeFacilities.length} Selected / {facilities.length} Candidates
         </span>
       </div>
 
@@ -49,7 +49,7 @@ export const FacilityList: React.FC<FacilityListProps> = ({
       <div className="facility-group">
         <div className="group-title active">
           <ShieldCheck size={14} className="text-emerald" />
-          <span>Active Priority Facilities (K = 3)</span>
+          <span>Selected Priority Facilities (K = 3)</span>
         </div>
 
         <div className="facility-cards-list">

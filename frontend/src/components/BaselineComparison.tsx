@@ -138,7 +138,7 @@ export const BaselineComparison: React.FC<BaselineComparisonProps> = ({
         <div className="summary-stat-cell">
           <span className="summary-stat-label">MUNICIPAL RESOURCE BUDGET</span>
           <span className="summary-stat-value text-amber font-mono">
-            K={budgetK || 3} Active Facilities
+            K={budgetK || 3} Selected Facilities
           </span>
           <span className="summary-stat-sub">
             Same facility-count budget in every comparison; no monetary cost model is asserted

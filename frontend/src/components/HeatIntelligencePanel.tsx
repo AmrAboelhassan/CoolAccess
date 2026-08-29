@@ -268,7 +268,7 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
         <div className="heat-intel-header-top">
           <div className="heat-intel-brand">
             <span className="heat-intel-pulse-dot" aria-hidden="true">●</span>
-            <span className="heat-intel-title">Temperature AI Decision Intelligence Layer</span>
+            <span className="heat-intel-title">Allocation Evidence Q&amp;A</span>
           </div>
 
           {brief && (
@@ -298,9 +298,9 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
         </div>
 
         <p className="heat-intel-subhead">
-          Temperature AI routes questions and organizes server-validated claims from prepared
-          FortyGuard temperature data and Census population evidence. The deterministic spatial
-          optimizer remains the authoritative allocation engine.
+          Optional AI routes questions and organizes server-validated claims from prepared
+          FortyGuard and Census evidence. The deterministic optimizer remains the sole
+          authoritative allocation engine.
         </p>
       </div>
 
@@ -363,7 +363,7 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
 
       {/* Quick Inquiries Toolbar */}
       <div className="heat-inquiries-toolbar">
-        <span className="toolbar-heading">Temperature AI Inquiries:</span>
+        <span className="toolbar-heading">Evidence Inquiries:</span>
         <div className="inquiry-chips-row">
           {primaryPrompts.map((item) => (
             <button
@@ -425,7 +425,7 @@ export const HeatIntelligencePanel: React.FC<HeatIntelligencePanelProps> = ({
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             disabled={loading}
-            aria-label="Temperature AI Municipal Inquiry"
+            aria-label="CoolAccess allocation evidence inquiry"
           />
           <button
             type="submit"
