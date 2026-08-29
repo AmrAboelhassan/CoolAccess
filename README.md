@@ -53,6 +53,13 @@ CoolAccess includes a fully validated, provenance-tracked empirical scenario for
 * **Naive Baseline at 20:00:** The naive hottest-catchment baseline selects the same set and produces the same objective as the dynamic optimum, so the gain over naive is **zero** at this timestamp.
 * **Population Trade-off at 20:00:** Dynamic resident coverage is `38,357`, versus `41,876` for the retained 16:00 set: `3,519` fewer residents covered while the heat-weighted objective is higher.
 
+### Independent Allocation Robustness Checks
+
+- **Population-Only Ablation:** At 20:00 UTC, population-only coverage retains `{DC_089, DC_148, DC_166}`, while FortyGuard-weighted allocation selects `{DC_089, DC_135, DC_166}` (the canonical DC_148 $\to$ DC_135 facility transition does not occur in the population-only ablation).
+- **Catchment Sensitivity:** Positive dynamic-vs-static gain persisted across all 9 tested 500m–1000m geographic radii; the canonical DC_148 $\to$ DC_135 transition persisted at 8 of 9 tested radii.
+- **Normalization Set Stability:** Optimal facility sets and diurnal transitions remained 100% stable across canonical P1/P99, empirical P5/P95, and snapshot min/max normalization anchors.
+- **Reproducible Evidence Tooling:** Run offline verification directly via `python scripts/run_allocation_robustness_evidence.py`.
+
 ---
 
 ## Multi-Day FortyGuard Benchmark

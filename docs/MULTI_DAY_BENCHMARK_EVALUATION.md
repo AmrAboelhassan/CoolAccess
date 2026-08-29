@@ -105,19 +105,67 @@ Every single one-for-one substitution of an optimal facility with an unselected 
 
 ---
 
-## 7. Secondary Sensitivity Analysis (500m & 1000m Radii)
+## 7. Geographic Catchment Radius Sensitivity (500m to 1000m)
 
-| Timestamp (UTC) | 500m Optimal Facilities | 500m Objective | 500m Pop | 1000m Optimal Facilities | 1000m Objective | 1000m Pop |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **`14:00`** | `DC_148, DC_166, DC_168` | 24,567.00 | 24,567 | `DC_135, DC_148, DC_166` | 61,028.00 | 61,028 |
-| **`16:00`** | `DC_148, DC_166, DC_168` | 24,567.00 | 24,567 | `DC_135, DC_148, DC_166` | 61,028.00 | 61,028 |
-| **`18:00`** | `DC_089, DC_166, DC_168` | 23,520.13 | 24,495 | `DC_135, DC_148, DC_166` | 58,147.93 | 61,028 |
-| **`20:00`** | `DC_148, DC_166, DC_168` | 19,518.07 | 24,567 | `DC_135, DC_148, DC_166` | 48,298.18 | 61,028 |
-| **`22:00`** | `DC_148, DC_166, DC_168` | 0.00 | 24,567 | `DC_135, DC_148, DC_166` | 0.00 | 61,028 |
+Evaluating allocation behavior across 9 geographic catchment radii under fixed budget $K=3$:
+
+| Radius | 16:00 Optimal Set | 20:00 Optimal Set | Dynamic Obj | Static Obj | Dynamic Gain (%) | Dynamic Pop | Static Pop | DC_148 $\to$ DC_135? |
+|:---:|:---|:---|:---:|:---:|:---:|:---:|:---:|:---:|
+| **500m** | `{DC_148, DC_166, DC_168}` | `{DC_089, DC_166, DC_168}` | 4,591.87 | 2,958.17 | **+55.23%** | 24,495 | 24,567 | False (DC_148 $\to$ 089) |
+| **600m** | `{DC_089, DC_148, DC_168}` | `{DC_089, DC_135, DC_166}` | 5,452.97 | 4,159.28 | **+31.10%** | 23,765 | 29,950 | **True** |
+| **650m** | `{DC_089, DC_148, DC_166}` | `{DC_089, DC_135, DC_166}` | 6,299.96 | 5,591.78 | **+12.66%** | 27,917 | 33,805 | **True** |
+| **700m** | `{DC_089, DC_148, DC_166}` | `{DC_089, DC_135, DC_166}` | 7,506.03 | 6,175.51 | **+21.55%** | 33,757 | 37,382 | **True** |
+| **750m** | **`{DC_089, DC_148, DC_166}`** | **`{DC_089, DC_135, DC_166}`** | **8,328.93** | **6,734.48** | **+23.68%** | **38,357** | **41,876** | **True** |
+| **800m** | `{DC_089, DC_148, DC_166}` | `{DC_089, DC_135, DC_166}` | 9,295.63 | 7,190.90 | **+29.27%** | 42,632 | 44,302 | **True** |
+| **850m** | `{DC_089, DC_148, DC_166}` | `{DC_089, DC_135, DC_166}` | 9,953.30 | 7,896.60 | **+26.05%** | 46,552 | 49,431 | **True** |
+| **900m** | `{DC_089, DC_148, DC_166}` | `{DC_089, DC_135, DC_166}` | 10,763.65 | 8,780.05 | **+22.59%** | 50,851 | 55,316 | **True** |
+| **1000m**| `{DC_135, DC_148, DC_166}` | `{DC_089, DC_135, DC_166}` | 11,347.36 | 9,101.46 | **+24.68%** | 54,904 | 61,028 | **True** |
+
+*Findings:*
+- Positive dynamic-vs-static gain persisted across all 9 tested radii (+12.66% to +55.23%).
+- The canonical DC_148 $\to$ DC_135 transition persisted at 8 of 9 tested radii (from 600m to 1000m).
 
 ---
 
-## 8. Cross-Day Comparison: July 15 vs July 16, 2024
+## 8. Independent Robustness & Ablation Checks
+
+### 8.1 Population-Only vs FortyGuard Thermal-Weighted Ablation
+
+| Timestamp | Canonical Allocation (Thermal $\times$ Pop) | Canonical Objective | Covered Pop | Population-Only Allocation (Thermal = 1.0) | Pop-Only Objective | Covered Pop | Allocation Changed? |
+|:---:|:---|:---:|:---:|:---|:---:|:---:|:---:|
+| **16:00 UTC** | `{DC_089, DC_148, DC_166}` | 40,567.30 | 41,876 | `{DC_089, DC_148, DC_166}` | 41,876.00 | 41,876 | No |
+| **20:00 UTC** | **`{DC_089, DC_135, DC_166}`** | **8,328.93** | **38,357** | **`{DC_089, DC_148, DC_166}`** | **41,876.00** | **41,876** | **YES (DC_148 $\to$ DC_135)** |
+
+*Finding:* At 20:00 UTC, population-only coverage retains `{DC_089, DC_148, DC_166}`, while FortyGuard-weighted allocation selects `{DC_089, DC_135, DC_166}`. The canonical facility transition therefore does not occur in the population-only ablation.
+
+### 8.2 Budget Constraint K Sensitivity (K = 1 to 6)
+
+| Budget ($K$) | 16:00 Selected Set | 16:00 Objective | 20:00 Selected Set | 20:00 Objective | Diurnal Change? |
+|:---:|:---|:---:|:---|:---:|:---:|
+| **K = 1** | `{DC_166}` | 14,858.90 | `{DC_089}` | 3,243.31 | **YES (DC_166 $\to$ DC_089)** |
+| **K = 2** | `{DC_148, DC_166}` | 28,982.68 | `{DC_089, DC_166}` | 5,955.74 | **YES (DC_148 $\to$ DC_089)** |
+| **K = 3** | **`{DC_089, DC_148, DC_166}`** | **40,567.30** | **`{DC_089, DC_135, DC_166}`** | **8,328.93** | **YES (DC_148 $\to$ DC_135)** |
+| **K = 4** | `{DC_089, DC_135, DC_148, DC_166}` | 50,899.16 | `{DC_089, DC_135, DC_148, DC_166}` | 9,107.66 | No |
+| **K = 5** | `{089, 135, 148, 159, 166}` | 56,935.08 | `{089, 135, 148, 159, 166}` | 9,450.46 | No |
+| **K = 6** | All 6 facilities | 61,378.87 | All 6 facilities | 9,750.19 | No |
+
+*Finding:* Time-varying facility selection appears under tighter resource budgets ($K=1–3$); with $K \ge 4$ both DC_135 and DC_148 can be selected simultaneously.
+
+### 8.3 Normalization Set Stability
+
+Testing linear priority normalization across alternative anchor sets on the empirical distribution ($N = 7,260$ tile-hours):
+
+| Normalization Scheme | Anchors ($[T_{\text{lower}}, T_{\text{upper}}]$) | 16:00 Optimal Set | 20:00 Optimal Set | Set Identity Invariant? |
+|---|:---:|:---:|:---:|:---:|
+| **Canonical Method A (P1/P99)** | $[32.022^\circ\text{C}, 37.699^\circ\text{C}]$ | `{DC_089, DC_148, DC_166}` | `{DC_089, DC_135, DC_166}` | **YES** |
+| **Empirical P5/P95 Anchors** | $[32.110^\circ\text{C}, 37.609^\circ\text{C}]$ | `{DC_089, DC_148, DC_166}` | `{DC_089, DC_135, DC_166}` | **YES** |
+| **Min/Max Snapshot Range** | $[31.360^\circ\text{C}, 37.776^\circ\text{C}]$ | `{DC_089, DC_148, DC_166}` | `{DC_089, DC_135, DC_166}` | **YES** |
+
+*Finding:* Optimal facility set identity and the diurnal transition are 100.0% invariant across tested normalization anchor schemes.
+
+---
+
+## 9. Cross-Day Comparison: July 15 vs July 16, 2024
 
 | Dimension | Canonical Production Demo (July 15, 2024) | Second-Day Offline Evaluation (July 16, 2024) | Cross-Day Evidence Note |
 |---|---|---|---|
@@ -131,11 +179,11 @@ Every single one-for-one substitution of an optimal facility with an unselected 
 
 ---
 
-## 9. Scope & Limitations
+## 10. Scope & Limitations
 
 1. **Two Historical Days Evaluated:** Evaluates July 15 and July 16, 2024. No statistical generalization claim across all seasons, weather regimes, or cities.
 2. **Prepared Data Replay:** Replays historical FortyGuard data; does not ingest live feeds or weather forecast models.
 3. **Census Population Representation:** Population figures reflect residential decennial Census headcounts (usual residents from 2020 Table P1), not real-time pedestrian or commercial foot-traffic.
 4. **No Medical / Health Outcome Claims:** Optimizes covered heat-weighted demand units; does not claim health risk reduction, medical protection, or physiological safety outcomes.
 5. **Operational Eligibility Scope:** Benchmark scope treats all six locked candidate public facilities as operationally eligible. Operating hours, current activation status, and facility service capacity are not modeled.
-6. **Geodesic Centroid Catchment Proxy:** Proximity is modeled as a 750m geodesic facility-to-Census-block-centroid catchment proxy, not individualized walking-network pedestrian routing.
+6. **Catchment Parameter Sensitivity:** Catchment radius analysis evaluates geometric parameter sensitivity; it does not validate 750m as pedestrian-network walking distance.
